@@ -99,6 +99,8 @@ main.hide-files #files { display: none; }
 #stdin:disabled { background: #16181d; }
 
 .t-info { color: var(--muted); font-style: italic; }
+a.loc { color: inherit; text-decoration: underline dotted; cursor: pointer; }
+a.loc:hover { text-decoration: underline; color: #7cc4ff; }
 .t-stdin { color: var(--ok); }
 .t-stderr { color: #e06c75; }
 .b { font-weight: 700; }

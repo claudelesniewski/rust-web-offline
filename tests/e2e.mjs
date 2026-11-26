@@ -99,6 +99,9 @@ try {
     assert.match(out, /error\[E0308\]: mismatched types/);
     assert.match(out, /src\/main\.rs:2/);
     assert.match(out, /Compilation failed/);
+    // Clicking the place goes there.
+    await page.locator("#output a.loc", { hasText: /^src\/main\.rs:2:/ }).first().click();
+    assert.equal(await page.locator(".cm-activeLine").innerText(), '    let x: i32 = "nope";');
   });
 
   await step("stdin", async () => {
@@ -123,6 +126,17 @@ try {
     await setCode("geometry.rs", "pub fn double(x: i32) -> i32 { x * 2 }\n");
     await setCode("main.rs", 'mod geometry;\nfn main() { println!("{}", geometry::double(21)); }\n');
     assert.match(await run(), /^42$/m);
+  });
+
+  await step("a panic's place in another file opens it there", async () => {
+    await setCode("geometry.rs", "pub fn double(x: i32) -> i32 { x * 2 }\npub fn oops() -> i32 { let v: Vec<i32> = Vec::new(); v[3] }\n");
+    await setCode("main.rs", "mod geometry;\nfn main() { geometry::oops(); }\n");
+    assert.match(await run(), /panicked at src\/geometry\.rs:2:/);
+    await page.locator("#output a.loc", { hasText: /^src\/geometry\.rs:2:/ }).click();
+    await page.locator('#file-list li.active[data-name="geometry.rs"]').waitFor();
+    assert.match(await page.locator(".cm-activeLine").innerText(), /^pub fn oops\(\)/);
+    await setCode("geometry.rs", "pub fn double(x: i32) -> i32 { x * 2 }\n");
+    await setCode("main.rs", 'mod geometry;\nfn main() { println!("{}", geometry::double(21)); }\n');
   });
 
   await step("tab completion", async () => {

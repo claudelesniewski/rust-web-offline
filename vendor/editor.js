@@ -64,6 +64,14 @@ export function createEditor(parent, { onChange, keys = [] }) {
     text: () => view.state.doc.toString(),
     /** Replace the whole text, as one undoable edit. */
     replace(text) { view.dispatch({ changes: { from: 0, to: view.state.doc.length, insert: text } }); },
+    /** Put the cursor at `line` and `col` (from 1), in view. */
+    goto(line, col) {
+      const doc = view.state.doc;
+      const l = doc.line(Math.min(Math.max(line, 1), doc.lines));
+      const pos = Math.min(l.from + Math.max(col, 1) - 1, l.to);
+      view.dispatch({ selection: { anchor: pos }, scrollIntoView: true });
+      view.focus();
+    },
     /** Remember the current state of `name` (call before switching away). */
     save(name) { states.set(name, view.state); },
     /** Turn inline suggestions on with `suggest(doc, pos, signal)`, which

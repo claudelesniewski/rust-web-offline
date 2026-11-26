@@ -1,14 +1,19 @@
-// Service worker: precaches the whole site (app and toolchain) so it works
-// offline, and adds the cross-origin isolation headers (COOP/COEP) that
-// SharedArrayBuffer needs, since GitHub Pages cannot send them itself.
+// Service worker: precaches the whole site (app, toolchain and docs) so it
+// works offline, serves the docs' pages out of their compressed chunks, and
+// adds the cross-origin isolation headers (COOP/COEP) that SharedArrayBuffer
+// needs, since GitHub Pages cannot send them itself.
 //
 // scripts/stamp-sw.mjs fills in VERSION and PRECACHE ([path, bytes] pairs)
 // when the site is built.
+import { createDocs } from "./docs.js";
+import { decompress } from "./zstd.js";
+
 const VERSION = "dev";
 const PRECACHE = [];
 
 // Content-hashed files, which an older version's cache can safely provide.
-const IMMUTABLE = /^toolchain\/[^/]+\.[0-9a-f]{12}\./;
+const IMMUTABLE = /^(toolchain\/[^/]+\.[0-9a-f]{12}\.|docs\/\d+\.[0-9a-f]{12}\.zst$)/;
+const SCOPE = new URL(self.registration.scope).pathname;
 const TOTAL = PRECACHE.reduce((n, [, size]) => n + size, 0);
 
 async function broadcast(msg) {
@@ -88,15 +93,29 @@ function isolated(res) {
   return new Response(res.body, { status: res.status, statusText: res.statusText, headers });
 }
 
+/** The cached response for `req`, or the network's. */
+async function cachedOrFetch(req) {
+  return (await (await caches.open(VERSION)).match(req, { ignoreSearch: true })) ?? fetch(req);
+}
+
+const serveDoc = createDocs({
+  read: async (name) => new Uint8Array(await (await cachedOrFetch(`docs/${name}`)).arrayBuffer()),
+  decompress,
+});
+
 self.addEventListener("fetch", (event) => {
   const req = event.request;
-  if (req.method !== "GET" || new URL(req.url).origin !== self.location.origin) return;
+  const url = new URL(req.url);
+  if (req.method !== "GET" || url.origin !== self.location.origin) return;
+  const path = url.pathname.slice(SCOPE.length);
   event.respondWith((async () => {
+    // Pages of the docs, but not the packed chunks they come from.
+    if (path.startsWith("docs/") && !path.endsWith(".zst")) return isolated(await serveDoc(path.slice(5)));
     const cache = await caches.open(VERSION);
-    let res = await cache.match(req, { ignoreSearch: true });
-    // Any page in scope is the app: offline, the cached one.
-    if (!res && req.mode === "navigate") res = await cache.match("./");
-    if (!res) res = await fetch(req);
+    // Any other page in scope is the app: offline, the cached one.
+    const res = (await cache.match(req, { ignoreSearch: true }))
+      ?? (req.mode === "navigate" ? await cache.match("./") : undefined)
+      ?? (await fetch(req));
     return isolated(res);
   })());
 });

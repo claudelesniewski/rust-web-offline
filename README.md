@@ -11,6 +11,8 @@ library run as WebAssembly on your machine; nothing is sent to a server.
   are modules: `mod foo;` uses `foo.rs`. Import `.rs` files; export one file
   or all of them as a `.zip`.
 - Standard library only (no crates.io).
+- Offline documentation: the Rust Book, the Reference, and the std, core and
+  alloc API docs with search (**Docs** menu).
 
 Setup and deployment: [docs/DEPLOY.md](docs/DEPLOY.md). How it works and why:
 [docs/DESIGN.md](docs/DESIGN.md).
@@ -18,7 +20,7 @@ Setup and deployment: [docs/DEPLOY.md](docs/DEPLOY.md). How it works and why:
 ## Development
 
 ```bash
-scripts/build.sh          # downloads the toolchain (~57 MB) and builds build/site
+scripts/build.sh          # downloads the toolchain and docs, builds build/site
 node tests/serve.mjs      # serves it at http://127.0.0.1:8000/rust-web-offline/
 scripts/ci.sh             # unit tests + build + end-to-end test in headless Chromium
 ```
@@ -30,5 +32,6 @@ The toolchain (`rustc` with the Cranelift backend, the Wild linker and the
 from [rust-playground-inbrowser](https://github.com/ryancbuckley/rust-playground-inbrowser)
 and [browser-kernel](https://github.com/ryancbuckley/browser-kernel) by Ryan
 Buckley (Apache-2.0); `web/compiler-worker.js` is adapted from the former.
-The deployed site includes their licences (`toolchain/licenses.html`,
+The documentation is the `rust-docs` component of the same nightly
+(MIT/Apache-2.0). The deployed site includes the toolchain's licences (`toolchain/licenses.html`,
 `browser-kernel/LICENSE`).

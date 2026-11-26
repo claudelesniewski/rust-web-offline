@@ -49,7 +49,7 @@ async function setupServiceWorker() {
       $("status").append(b);
     }
   });
-  await sw.register("sw.js");
+  await sw.register("sw.js", { type: "module" });
   if (sw.controller) sw.controller.postMessage({ type: "offline-status" });
   if (!crossOriginIsolated && sw.controller) reloadForIsolation();
 }
@@ -228,6 +228,10 @@ function setupFileActions() {
     flushSaves();
     const list = [...files].sort().map(([name, content]) => ({ name, content }));
     download(`rust-files-${new Date().toISOString().slice(0, 10)}.zip`, zip(list));
+  };
+  $("docs").onchange = (e) => {
+    if (e.target.value) open(e.target.value, "_blank");
+    e.target.value = "";
   };
   const examples = $("examples");
   for (const name of Object.keys(EXAMPLES)) examples.add(new Option(name, name));

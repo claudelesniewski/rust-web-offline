@@ -12,6 +12,7 @@
     "@codemirror/theme-one-dark": "6.1.3",
     "codemirror": "6.0.2",
     "esbuild": "0.28.2",
+    "fzstd": "0.1.1",
     "playwright": "1.63.0"
   }
 }

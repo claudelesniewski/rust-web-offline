@@ -86,9 +86,16 @@ service worker (sw.js): precache everything, serve from cache (docs from
   [fzstd](https://github.com/101arrowz/fzstd) when one of its pages is first
   asked for and keeping the last four in memory. Pages not included get a
   page linking to doc.rust-lang.org.
-- **Completion.** Without AI: keywords, snippets, common std names and
-  methods, and the file's words (`vendor/completion.js`), by context but
-  without types. With AI turned on: `web/lm.js` downloads
+- **Completion.** Keywords, snippets, common std names and methods, and the
+  file's words (`vendor/completion.js`), by context. After a dot, with
+  type-aware completion on (`web/types.js`): the word there is replaced by a
+  field that cannot exist and the program is type-checked (`--emit=metadata`,
+  0.3 to 1.3 s), so that rustc's error names the type (``no field
+  `__rwo_probe` on type `Vec<i32>` ``) and lists a struct's fields; that
+  type's stable methods taking `self` then come from its offline docs page,
+  found through `docs/types.json` (made by `pack-docs.mjs`), or, for your own
+  types, from your `impl` blocks. If the type can't be found (e.g. the code
+  doesn't parse), the plain list is offered. With AI turned on: `web/lm.js` downloads
   [wllama](https://github.com/ngxson/wllama) (llama.cpp in wasm, 11 MB, built
   into the site but not precached) and SmolLM2-135M at 8 bits (145 MB, from
   Hugging Face at a pinned revision, checked by SHA-256) into a cache of
@@ -98,7 +105,10 @@ service worker (sw.js): precache everything, serve from cache (docs from
   this small, general model away from Java and C++ habits) and the last
   1,500 characters before the cursor. Measured in headless Chromium on 4
   cores: 0.8 to 1.8 s per suggestion; Qwen2.5-Coder-0.5B, a much better code
-  model, is 430 MB at 4 bits, too much for small Chromebooks.
+  model, is 430 MB at 4 bits, too much for small Chromebooks. Chat-tuned
+  variants (SmolLM2-135M-Instruct, kimi-coder-135m) complete code no better
+  (5 of 12 test lines, as the base model) and answer Rust questions
+  confidently wrongly, so offline chat would need a much larger model.
 - **Files.** IndexedDB (`web/store.js`), saved 400 ms after each edit and when
   the page is hidden. File names are Rust module names ending in `.rs`.
 

@@ -27,9 +27,17 @@
     <option value="docs/std/index.html">std library</option>
     <option value="docs/reference/index.html">Reference</option>
   </select>
-  <label id="ai-toggle" title="AI suggestions: a small language model, run on this device, suggests the rest of the line; Tab takes it. Downloads 145 MB the first time.">
-    <input type="checkbox" id="ai"> AI <span id="ai-status"></span>
-  </label>
+  <details id="options">
+    <summary>Options <span id="ai-status"></span></summary>
+    <div class="menu">
+      <label title="After a dot, ask the compiler for the type there and offer that type's methods, from the offline docs.">
+        <input type="checkbox" id="types"> Type-aware completion
+      </label>
+      <label id="ai-toggle" title="A small language model, run on this device, suggests the rest of the line; Tab takes it. Downloads 145 MB the first time.">
+        <input type="checkbox" id="ai"> AI suggestions (145 MB)
+      </label>
+    </div>
+  </details>
   <span class="spacer"></span>
   <span id="status">Starting…</span>
   <span id="offline" title="Whether everything is saved for offline use">Offline: checking…</span>

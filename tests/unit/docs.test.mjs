@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 import { decompress } from "fzstd";
 import { zstdCompressSync } from "node:zlib";
-import { pack } from "../../scripts/pack-docs.mjs";
+import { pack, typeIndex } from "../../scripts/pack-docs.mjs";
 import { createDocs } from "../../web/docs.js";
 
 const enc = new TextEncoder();
@@ -42,4 +42,19 @@ test("pages not included get a 404 pointing online", async () => {
   const res = await serveFrom(files)("core/arch/index.html");
   assert.equal(res.status, 404);
   assert.match(await res.text(), /https:\/\/doc\.rust-lang\.org\/nightly\/core\/arch\/index\.html/);
+});
+
+test("the type index finds pages by full path and by name, preferring std", () => {
+  const index = typeIndex([
+    "std/vec/struct.Vec.html", "alloc/vec/struct.Vec.html", "std/primitive.i32.html",
+    "core/slice/struct.Iter.html", "std/slice/struct.Iter.html", "std/collections/hash_map/struct.Iter.html",
+    "std/vec/index.html",
+  ]);
+  assert.equal(index["std::vec::Vec"], "std/vec/struct.Vec.html");
+  assert.equal(index["alloc::vec::Vec"], "alloc/vec/struct.Vec.html");
+  assert.equal(index.Vec, "std/vec/struct.Vec.html");
+  assert.equal(index.i32, "std/primitive.i32.html");
+  assert.equal(index.Iter, "std/slice/struct.Iter.html");
+  assert.equal(index["std::collections::hash_map::Iter"], "std/collections/hash_map/struct.Iter.html");
+  assert.equal(Object.keys(index).length, 8);
 });

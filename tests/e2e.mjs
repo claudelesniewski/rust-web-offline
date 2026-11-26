@@ -38,7 +38,7 @@ async function step(name, fn) {
 
 /** Open `name` and replace its text with `code`. */
 async function setCode(name, code) {
-  await page.locator("#file-list li", { hasText: new RegExp(`^${name}$`) }).click();
+  await page.locator(`#file-list li[data-name="${name}"]`).click();
   await page.locator(".cm-content").click();
   await page.keyboard.press("ControlOrMeta+a");
   await page.keyboard.insertText(code);
@@ -248,7 +248,37 @@ try {
 
   await step("export all as a zip", async () => {
     const [download] = await Promise.all([page.waitForEvent("download"), page.locator("#export-all").click()]);
-    assert.match(download.suggestedFilename(), /^rust-files-\d{4}-\d{2}-\d{2}\.zip$/);
+    assert.match(download.suggestedFilename(), /^My-project-\d{4}-\d{2}-\d{2}\.zip$/);
+  });
+
+  await step("projects, each with its own files, in folders", async () => {
+    const first = await page.locator("#file-list li").allInnerTexts();
+    const newProject = async (name) => {
+      await page.locator("#project-menu summary").click();
+      page.once("dialog", (d) => d.accept(name));
+      await page.locator("#new-project").click();
+      await page.waitForFunction((name) => document.querySelector("#project").selectedOptions[0]?.text === name, name);
+    };
+    await newProject("Second");
+    assert.deepEqual(await page.locator("#file-list li").allInnerTexts(), ["main.rs"]);
+    page.once("dialog", (d) => d.accept("util/mod.rs"));
+    await page.locator("#new-file").click();
+    await setCode("util/mod.rs", "pub fn two() -> i32 { 2 }\n");
+    await setCode("main.rs", 'mod util;\nfn main() { println!("{}", util::two()); }\n');
+    assert.deepEqual(await page.locator("#file-list li").allInnerTexts(), ["main.rs", "util/", "mod.rs"]);
+    assert.match(await run(), /^2$/m);
+    // The first project's files are as they were.
+    await page.locator("#project").selectOption({ label: "My project" });
+    await page.locator('#file-list li[data-name="shapes.rs"]').waitFor();
+    assert.deepEqual(await page.locator("#file-list li").allInnerTexts(), first);
+    // Deleting a project.
+    await newProject("Third");
+    await page.locator("#project-menu summary").click();
+    page.once("dialog", (d) => d.accept());
+    await page.locator("#delete-project").click();
+    await page.waitForFunction(() => ![...document.querySelector("#project").options].some((o) => o.text === "Third"));
+    await page.locator("#project").selectOption({ label: "My project" });
+    await page.locator('#file-list li[data-name="shapes.rs"]').waitFor();
   });
 
   await step("a new version installs without downloading the toolchain or docs again", async () => {

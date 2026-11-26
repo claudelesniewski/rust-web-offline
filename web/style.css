@@ -56,6 +56,20 @@ main.hide-files #files { display: none; }
   grid-area: files; display: flex; flex-direction: column; min-height: 0;
   border-right: 1px solid var(--border); background: var(--bg);
 }
+.project-bar { display: flex; gap: 4px; padding: 6px; border-bottom: 1px solid var(--border); }
+#project { flex: 1; min-width: 0; padding: 3px 4px; }
+.dropdown { position: relative; }
+.dropdown summary {
+  list-style: none; cursor: pointer; padding: 3px 8px;
+  border: 1px solid var(--border); border-radius: 4px;
+}
+#project-menu .menu {
+  position: absolute; top: calc(100% + 4px); right: 0; z-index: 10; width: max-content;
+  display: flex; flex-direction: column; gap: 4px; padding: 6px;
+  background: var(--panel); border: 1px solid var(--border); border-radius: 4px;
+}
+#file-list li.folder { cursor: default; color: var(--muted); }
+#file-list li.folder:hover { background: none; }
 #file-list { list-style: none; margin: 0; padding: 4px 0; overflow: auto; flex: 1; }
 #file-list li {
   padding: 4px 12px; cursor: pointer; font-family: ui-monospace, monospace; font-size: 13px;

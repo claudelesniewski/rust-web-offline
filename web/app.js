@@ -77,12 +77,16 @@ async function requestPersistence() {
     : "Storage is not persistent yet: installing the app usually makes it so.";
 }
 
-// ---- Files -----------------------------------------------------------------
+// ---- Projects and files ----------------------------------------------------
 
-/** name -> content, mirrored in IndexedDB. */
+/** The open project's id, and its files: name (a path) -> content,
+ *  mirrored in IndexedDB. */
+let project = null;
 const files = new Map();
 let active = null;
 const saveTimers = new Map();
+/** id -> name of every project. */
+const projects = new Map();
 
 const editor = createEditor($("editor"), {
   onChange(text) {
@@ -104,20 +108,36 @@ function scheduleSave(name) {
 function save(name) {
   clearTimeout(saveTimers.get(name));
   saveTimers.delete(name);
-  if (files.has(name)) store.putFile(name, files.get(name)).catch((e) => setStatus(`Saving failed: ${e}`));
+  if (files.has(name)) store.putFile(project, name, files.get(name)).catch((e) => setStatus(`Saving failed: ${e}`));
 }
 
 function flushSaves() {
   for (const name of [...saveTimers.keys()]) save(name);
 }
 
+/** The files as a tree: each folder once, then its files, indented. */
 function renderFiles() {
   const list = $("file-list");
   list.textContent = "";
+  const shown = new Set();
   for (const name of [...files.keys()].sort()) {
+    const parts = name.split("/");
+    for (let depth = 0; depth < parts.length - 1; depth++) {
+      const folder = parts.slice(0, depth + 1).join("/");
+      if (shown.has(folder)) continue;
+      shown.add(folder);
+      const li = document.createElement("li");
+      li.className = "folder";
+      li.textContent = `${parts[depth]}/`;
+      li.style.paddingLeft = `${12 + depth * 14}px`;
+      list.append(li);
+    }
     const li = document.createElement("li");
-    li.textContent = name;
+    li.textContent = parts.at(-1);
+    li.dataset.name = name;
+    li.title = name;
     li.className = name === active ? "active" : "";
+    li.style.paddingLeft = `${(name === active ? 9 : 12) + (parts.length - 1) * 14}px`;
     li.onclick = () => openFile(name);
     list.append(li);
   }
@@ -127,7 +147,7 @@ function openFile(name) {
   if (active !== null && files.has(active)) editor.save(active);
   active = name;
   editor.open(name, files.get(name));
-  store.setSetting("active", name);
+  store.setSetting(`active:${project}`, name);
   renderFiles();
 }
 
@@ -145,7 +165,8 @@ function askName(message, initial) {
   if (!name) return null;
   if (!name.endsWith(".rs")) name += ".rs";
   if (!store.validName(name)) {
-    alert(`"${name}" is not a valid name: use letters, digits and _, starting with a letter, ending in .rs.`);
+    alert(`"${name}" is not a valid name: use letters, digits and _, starting with a letter, ` +
+      "with folders before / (as in geometry/shapes.rs), and ending in .rs.");
     return null;
   }
   if (files.has(name)) {
@@ -158,20 +179,80 @@ function askName(message, initial) {
 async function addFile(name, content) {
   files.set(name, content);
   editor.forget(name);
-  await store.putFile(name, content);
+  await store.putFile(project, name, content);
   openFile(name);
 }
 
-async function loadFiles() {
-  for (const { name, content } of await store.listFiles()) files.set(name, content);
-  if (files.size === 0) {
-    for (const [name, content] of [["main.rs", EXAMPLES["hello.rs"]], ["shapes.rs", EXAMPLES["shapes.rs"]]]) {
-      files.set(name, content);
-      await store.putFile(name, content);
-    }
-  }
-  const last = await store.getSetting("active");
+function renderProjects() {
+  const select = $("project");
+  select.textContent = "";
+  for (const [id, name] of [...projects].sort((a, b) => a[1].localeCompare(b[1]))) select.add(new Option(name, id));
+  select.value = project;
+}
+
+/** Create a project with `seed` files ([name, content]); returns its id. */
+async function createProject(name, seed, id = crypto.randomUUID()) {
+  await store.putProject({ id, name });
+  for (const [file, content] of seed) await store.putFile(id, file, content);
+  projects.set(id, name);
+  return id;
+}
+
+/** Close the open project (saving it) and open project `id`. */
+async function openProject(id) {
+  flushSaves();
+  for (const name of files.keys()) editor.forget(name);
+  files.clear();
+  active = null;
+  project = id;
+  store.setSetting("project", id);
+  for (const { name, content } of await store.listFiles(id)) files.set(name, content);
+  if (files.size === 0) await addFile("main.rs", EXAMPLES["hello.rs"]);
+  const last = await store.getSetting(`active:${id}`);
   openFile(files.has(last) ? last : files.has("main.rs") ? "main.rs" : [...files.keys()].sort()[0]);
+  renderProjects();
+}
+
+async function loadProjects() {
+  for (const { id, name } of await store.listProjects()) projects.set(id, name);
+  if (projects.size === 0) {
+    await createProject("My project", [["main.rs", EXAMPLES["hello.rs"]], ["shapes.rs", EXAMPLES["shapes.rs"]]],
+      store.FIRST_PROJECT);
+  }
+  const last = await store.getSetting("project");
+  await openProject(projects.has(last) ? last : [...projects.keys()][0]);
+}
+
+function setupProjectActions() {
+  $("project").onchange = (e) => openProject(e.target.value);
+  const menu = $("project-menu");
+  const ask = (message, initial) => {
+    menu.open = false;
+    return prompt(message, initial)?.trim() || null;
+  };
+  $("new-project").onclick = async () => {
+    const name = ask("New project name:", "New project");
+    if (name) await openProject(await createProject(name, [["main.rs", EXAMPLES["hello.rs"]]]));
+  };
+  $("rename-project").onclick = async () => {
+    const name = ask("Rename the project to:", projects.get(project));
+    if (!name) return;
+    await store.putProject({ id: project, name });
+    projects.set(project, name);
+    renderProjects();
+  };
+  $("delete-project").onclick = async () => {
+    menu.open = false;
+    const count = files.size === 1 ? "its file" : `its ${files.size} files`;
+    if (!confirm(`Delete the project "${projects.get(project)}" and ${count}? This cannot be undone.`)) return;
+    for (const timer of saveTimers.values()) clearTimeout(timer);
+    saveTimers.clear();
+    const gone = project;
+    await store.deleteProject(gone);
+    projects.delete(gone);
+    if (projects.size === 0) await createProject("My project", [["main.rs", EXAMPLES["hello.rs"]]]);
+    await openProject([...projects.keys()][0]);
+  };
 }
 
 function download(name, blob) {
@@ -193,7 +274,7 @@ function setupFileActions() {
     if (!to) return;
     save(from);
     const content = files.get(from);
-    await store.renameFile(from, to, content);
+    await store.renameFile(project, from, to, content);
     files.delete(from);
     editor.forget(from);
     active = null;
@@ -205,7 +286,7 @@ function setupFileActions() {
     const name = active;
     clearTimeout(saveTimers.get(name));
     saveTimers.delete(name);
-    await store.deleteFile(name);
+    await store.deleteFile(project, name);
     files.delete(name);
     editor.forget(name);
     active = null;
@@ -225,12 +306,13 @@ function setupFileActions() {
   };
   $("export").onclick = () => {
     flushSaves();
-    download(active, new Blob([files.get(active)], { type: "text/plain" }));
+    download(active.split("/").pop(), new Blob([files.get(active)], { type: "text/plain" }));
   };
   $("export-all").onclick = () => {
     flushSaves();
     const list = [...files].sort().map(([name, content]) => ({ name, content }));
-    download(`rust-files-${new Date().toISOString().slice(0, 10)}.zip`, zip(list));
+    const name = projects.get(project).replace(/[^\w-]+/g, "-").replace(/^-|-$/g, "") || "rust-files";
+    download(`${name}-${new Date().toISOString().slice(0, 10)}.zip`, zip(list));
   };
   $("docs").onchange = (e) => {
     if (e.target.value) open(e.target.value, "_blank");
@@ -425,7 +507,8 @@ $("run").onclick = run;
 $("stop").onclick = stop;
 $("format").onclick = format;
 setupFileActions();
-loadFiles().catch((e) => setStatus(`Could not load your files: ${e}`));
+setupProjectActions();
+loadProjects().catch((e) => setStatus(`Could not load your files: ${e}`));
 setupServiceWorker().catch((e) => showOffline("", `Offline: unavailable (${e.message})`));
 requestPersistence();
 store.getSetting("ai").then((on) => { if (on) setAI(true, { ask: false }); });

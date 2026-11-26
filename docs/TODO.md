@@ -7,5 +7,4 @@
 - Clickable compiler diagnostics (jump to file and line).
 - Try some creative prompting, constraints, etc. (possibly in conjunction
   with the toolchain) to improve AI suggestions.
-- Separate projects, each with its own file tree.
 - Sync a project with a GitHub repository.

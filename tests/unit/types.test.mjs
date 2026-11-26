@@ -1,6 +1,8 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { methodsFromHtml, parseProbe, probeSource, typeName, userMethods } from "../../web/types.js";
+import {
+  createTypeCompletion, methodsFromHtml, parseProbe, probeSource, typeName, userMethods,
+} from "../../web/types.js";
 
 test("the probe replaces the word after the dot and ends the statement", () => {
   const doc = "fn main() {\n    v.pu\n}\n";
@@ -8,6 +10,26 @@ test("the probe replaces the word after the dot and ends the statement", () => {
   assert.equal(probeSource(doc, from, from + 2), "fn main() {\n    v.__rwo_probe;\n}\n");
   const call = "f(v.)\n";
   assert.equal(probeSource(call, 4, 4), "f(v.__rwo_probe)\n");
+});
+
+test("after if, while, for and match the probe gets a block, so it parses", () => {
+  for (const line of ["if v.", "} else if v.", "while v.", "for x in v.", "match v."]) {
+    const doc = `    ${line}\n`;
+    assert.equal(probeSource(doc, doc.length - 1, doc.length - 1), `    ${line}__rwo_probe {}\n`, line);
+  }
+});
+
+test("nothing is offered after a name that doesn't exist; the plain list if the type can't be found", async () => {
+  const doc = "fn main() {\n    foo.\n}\n";
+  const from = doc.indexOf(".") + 1;
+  const outputs = {
+    unknown: "error[E0425]: cannot find value `foo` in this scope\n --> src/main.rs:2:5\n",
+    elsewhere: "error: expected `;`\n --> src/other.rs:2:5\n",
+  };
+  for (const [kind, expected] of [["unknown", []], ["elsewhere", null]]) {
+    const complete = createTypeCompletion({ check: async () => outputs[kind], fetchText: async () => "{}" });
+    assert.deepEqual(await complete(doc, from, from, [doc], "main.rs"), expected, kind);
+  }
 });
 
 test("rustc's errors give the type, and a struct's fields", () => {

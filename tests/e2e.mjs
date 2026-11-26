@@ -175,6 +175,12 @@ try {
     assert.ok(vec.includes("push") && vec.includes("sort") && !vec.includes("push_str"), vec.join(" "));
     assert.ok((await optionsAfter("s.")).includes("push_str"));
     assert.deepEqual((await optionsAfter("p.")).sort(), ["get", "x"]);
+    // After a name that doesn't exist: nothing.
+    await page.keyboard.type("    nope.");
+    await page.waitForTimeout(3000);
+    assert.equal(await page.locator(".cm-tooltip-autocomplete").count(), 0);
+    await page.keyboard.press("Shift+Home");
+    await page.keyboard.press("Delete");
   });
 
   await step("AI suggestions", async () => {

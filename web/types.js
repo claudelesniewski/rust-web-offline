@@ -9,12 +9,15 @@
 
 const PROBE = "__rwo_probe";
 
-/** The source with the word at [from, to) replaced by the probe, and a `;`
- *  after it if nothing follows on its line, so the statement parses. */
+/** The source with the word at [from, to) replaced by the probe, ending
+ *  the statement if nothing follows on its line, so that it parses: with
+ *  ` {}` after `if`, `while`, `for` or `match`, else with `;`. */
 export function probeSource(doc, from, to) {
   const eol = doc.indexOf("\n", to) === -1 ? doc.length : doc.indexOf("\n", to);
   const rest = doc.slice(to, eol);
-  return doc.slice(0, from) + PROBE + (rest.trim() ? rest : ";") + doc.slice(eol);
+  const line = doc.slice(doc.lastIndexOf("\n", from - 1) + 1, from);
+  const end = /^\s*(?:\}\s*else\s+)?(?:if|while|for|match)\b/.test(line) ? " {}" : ";";
+  return doc.slice(0, from) + PROBE + (rest.trim() ? rest : end) + doc.slice(eol);
 }
 
 /** From rustc's output for a probe: { type, fields }, or null. */
@@ -80,8 +83,15 @@ export function userMethods(sources, name) {
   return [...methods.values()];
 }
 
-/** Completion options for the word at [from, to) after a dot, or null
- *  if the type cannot be found. `check(source)` type-checks the program with
+/** Whether rustc's output has an error on line `line` (from 1) of `file`:
+ *  then it is about what comes before the dot (as `cannot find value`). */
+export function errorOnLine(output, file, line) {
+  return output.includes(`--> src/${file}:${line}:`);
+}
+
+/** Completion options for the word at [from, to) after a dot in file
+ *  `main`: [] if what is before the dot has no type (it doesn't exist, say),
+ *  or null if the type cannot be found for another reason. `check(source)` type-checks the program with
  *  that source for the open file and returns rustc's output; `fetchText`
  *  reads a file of the site (the docs). `sources` are all the files' texts. */
 export function createTypeCompletion({ check, fetchText }) {
@@ -101,15 +111,16 @@ export function createTypeCompletion({ check, fetchText }) {
     return pages.get(page);
   }
 
-  return function complete(doc, from, to, sources) {
+  return function complete(doc, from, to, sources, main) {
     const source = probeSource(doc, from, to);
     // Typing more of the word asks again, with the same probe.
     if (last.key !== source) {
       last = {
         key: source,
         result: (async () => {
-          const found = parseProbe(await check(source));
-          if (!found) return null;
+          const output = await check(source);
+          const found = parseProbe(output);
+          if (!found) return errorOnLine(output, main, doc.slice(0, from).split("\n").length) ? [] : null;
           const name = typeName(found.type);
           const methods = name ? await methodsOf(name, sources) : [];
           return [

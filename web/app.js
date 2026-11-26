@@ -364,7 +364,7 @@ const typeCompletion = createTypeCompletion({ check, fetchText: async (path) => 
 function setTypes(on) {
   $("types").checked = on;
   store.setSetting("types", on);
-  editor.setTypeMethods(on ? (doc, from, to) => typeCompletion(doc, from, to, [...files.values()]) : null);
+  editor.setTypeMethods(on ? (doc, from, to) => typeCompletion(doc, from, to, [...files.values()], active) : null);
 }
 
 $("types").onchange = (e) => setTypes(e.target.checked);

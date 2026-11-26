@@ -1,8 +1,9 @@
 #!/usr/bin/env bash
 # Builds the static site into build/site, ready for any static host.
 #   web/        the app's source, copied as is
-#   editor/     CodeMirror entry point, bundled by esbuild into editor.js
+#   vendor/     entry points for npm packages, bundled by esbuild
 #   toolchain   downloaded by fetch-toolchain.sh
+#   docs        the Rust docs, packed by pack-docs.mjs
 # sw.js is then stamped with the list of files to precache for offline use.
 set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
@@ -16,7 +17,9 @@ scripts/fetch-toolchain.sh
 rm -rf "$SITE"
 mkdir -p "$SITE/toolchain" "$SITE/browser-kernel"
 cp -R web/. "$SITE/"
-npx esbuild editor/index.js --bundle --minify --format=esm --log-level=warning --outfile="$SITE/editor.js"
+for entry in vendor/*.js; do
+  npx esbuild "$entry" --bundle --minify --format=esm --log-level=warning --outfile="$SITE/${entry#vendor/}"
+done
 node scripts/make-icons.mjs "$SITE/icons"
 
 cp "$TC"/browser-kernel/{kernel.js,fs.js,thread-worker.js,LICENSE} "$SITE/browser-kernel/"
@@ -33,6 +36,21 @@ for f in rustc.wasm.gz wild.wasm.gz sysroot.bundle; do
   json+="\"${f%%.*}\": [$parts], "
 done
 echo "${json%, }}" > "$SITE/toolchain/index.json"
+
+# Packing the docs takes a minute, so the result is cached until the docs
+# or the packer change.
+key="$(cat "$TC/rust-docs.tar.xz" scripts/pack-docs.mjs | sha256sum | cut -c1-12)"
+DOCS="build/cache/docs-$key"
+if [ ! -d "$DOCS" ]; then
+  rm -rf build/cache/docs-* build/cache/docs-html
+  mkdir -p build/cache/docs-html
+  tar -xJf "$TC/rust-docs.tar.xz" -C build/cache/docs-html --strip-components=6 \
+    rust-docs-nightly-x86_64-unknown-linux-gnu/rust-docs/share/doc/rust/html
+  node scripts/pack-docs.mjs build/cache/docs-html "$DOCS.part"
+  rm -rf build/cache/docs-html
+  mv "$DOCS.part" "$DOCS"
+fi
+cp -R "$DOCS" "$SITE/docs"
 
 node scripts/stamp-sw.mjs "$SITE"
 du -sh "$SITE"

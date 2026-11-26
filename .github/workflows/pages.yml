@@ -21,10 +21,14 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+      # Node 22.15+ has zstd, which scripts/pack-docs.mjs uses.
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
       - uses: actions/cache@v4
         with:
           path: build/cache
-          key: toolchain-${{ hashFiles('scripts/fetch-toolchain.sh') }}
+          key: toolchain-${{ hashFiles('scripts/fetch-toolchain.sh', 'scripts/pack-docs.mjs') }}
       - run: scripts/build.sh
       - uses: actions/upload-pages-artifact@v3
         with:

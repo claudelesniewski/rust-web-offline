@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# CI: unit tests, a full build (downloads the ~57 MB toolchain), then the
+# CI: unit tests, a full build (downloads the toolchain and docs), then the
 # end-to-end test in headless Chromium, which compiles and runs programs
 # online and offline.
 set -euo pipefail

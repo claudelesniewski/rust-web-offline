@@ -1,6 +1,6 @@
 // End-to-end test in headless Chromium: first visit, compile and run,
 // stdin, compile errors, files that persist, an update, then the same
-// offline. Run scripts/build.sh first.
+// offline, and the docs. Run scripts/build.sh first.
 import assert from "node:assert/strict";
 import { cpSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
@@ -125,14 +125,15 @@ try {
     assert.match(download.suggestedFilename(), /^rust-files-\d{4}-\d{2}-\d{2}\.zip$/);
   });
 
-  await step("a new version installs without downloading the toolchain again", async () => {
+  await step("a new version installs without downloading the toolchain or docs again", async () => {
     const sw = join(site, "sw.js");
     writeFileSync(sw, readFileSync(sw, "utf8").replace(/^const VERSION = "(.*)";$/m, 'const VERSION = "$1-next";'));
     requests.length = 0;
     await page.reload();
     await page.locator("#status button", { hasText: "Update ready" }).click({ timeout: 60_000 });
     await waitReady();
-    assert.deepEqual(requests.filter((r) => r.includes("/toolchain/") && !r.endsWith(".json") && !r.endsWith(".html")), []);
+    // Content-hashed files: the toolchain and the docs' chunks.
+    assert.deepEqual(requests.filter((r) => /\/toolchain\/.*\.[0-9a-f]{12}\.|\/docs\/\d+\./.test(r)), []);
     assert.match(await page.locator("#offline").innerText(), /Ready for offline use/);
   });
 
@@ -149,6 +150,19 @@ try {
       null, { timeout: 120_000 });
     assert.match(await offline.locator("#output").innerText(), /^42$/m);
     assert.match(await offline.locator("#offline").innerText(), /Ready for offline use/);
+  });
+
+  await step("the docs work offline, search included", async () => {
+    const docs = await context.newPage();
+    await docs.goto(`${url}docs/book/ch05-01-defining-structs.html`);
+    await docs.locator("h2", { hasText: "Defining and Instantiating Structs" }).waitFor();
+    await docs.goto(`${url}docs/std/vec/struct.Vec.html`);
+    await docs.locator("h1", { hasText: "Vec" }).waitFor();
+    await docs.goto(`${url}docs/std/index.html?search=HashMap`);
+    await docs.locator(".search-results a", { hasText: "HashMap" }).first().waitFor({ timeout: 30_000 });
+    const missing = await docs.goto(`${url}docs/core/arch/index.html`);
+    assert.equal(missing.status(), 404);
+    await docs.close();
   });
 } finally {
   await browser.close();

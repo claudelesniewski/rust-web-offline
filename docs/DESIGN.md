@@ -55,7 +55,8 @@ page (app.js)                   compiler worker                  thread workers
  editor, files, terminal  ───►  browser-kernel: in-memory FS,  ─► one per wasm thread,
  IndexedDB store          ◄───  WASI syscalls, processes          sharing memory
                                  rustc.wasm → wild.wasm → your program
-service worker (sw.js): precache everything, serve from cache, add COOP/COEP
+service worker (sw.js): precache everything, serve from cache (docs from
+                        compressed chunks), add COOP/COEP
 ```
 
 - **Compiling.** `compiler-worker.js` loads rustc, the linker and the sysroot
@@ -73,12 +74,25 @@ service worker (sw.js): precache everything, serve from cache, add COOP/COEP
   version in the background. Toolchain files have content-hashed names, so
   unchanged ones are copied from the old cache instead of downloaded. When
   the new version takes over, the page offers "Update ready: reload".
+- **Docs.** The `rust-docs` component of the toolchain's nightly is 918 MB
+  over 66,000 files. `scripts/pack-docs.mjs` keeps the Book, the Reference,
+  the std, core and alloc APIs (without `core::arch`, the SIMD intrinsics for
+  every platform, which are two thirds of all pages) and rustdoc's search
+  index: 8,500 files, 310 MB. Pages share most of their markup, so it
+  concatenates them, in path order, into 8 MB chunks and compresses each with
+  zstd: 14 MB in all, against about 35 MB for zipping each file alone.
+  The service worker answers requests under `docs/` from these chunks
+  (`web/docs.js`), decompressing a chunk with
+  [fzstd](https://github.com/101arrowz/fzstd) when one of its pages is first
+  asked for and keeping the last four in memory. Pages not included get a
+  page linking to doc.rust-lang.org.
 - **Files.** IndexedDB (`web/store.js`), saved 400 ms after each edit and when
   the page is hidden. File names are Rust module names ending in `.rs`.
 
 ## Limits
 
-- About 60 MB is cached; the first visit downloads all of it.
+- About 74 MB is cached (60 MB toolchain, 14 MB docs); the first visit
+  downloads all of it.
 - Memory: rustc reserves up to 1 GiB of address space (512 MiB on devices
   reporting under 4 GB of RAM). Very large programs may run out.
 - Standard library only; one crate per run; programs are wasm, so no

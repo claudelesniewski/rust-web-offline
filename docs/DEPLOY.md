@@ -33,7 +33,7 @@ Free GitHub Pages only serves public repositories.
 
 ## Install and check offline use
 
-1. Open the site. The first visit downloads about 60 MB; the top-right shows
+1. Open the site. The first visit downloads about 74 MB (compiler and docs); the top-right shows
    "Saving for offline: … MB" and then **✓ Ready for offline use**. (On GitHub
    Pages the page reloads itself once while setting up; that's expected.)
 2. Install it: click the install icon at the right end of the address bar,
@@ -41,7 +41,7 @@ Free GitHub Pages only serves public repositories.
    It then opens in its own window and appears in the ChromeOS launcher.
 3. Test: turn off Wi-Fi, close the app, open it from the launcher, and press
    **Run** on `main.rs` (hello world) and `shapes.rs` (Vec, String, a struct
-   with impl blocks).
+   with impl blocks). The **Docs** menu works offline too.
 
 Hovering over "Ready for offline use" says whether the browser granted
 persistent storage (installed apps normally get it), which stops it evicting

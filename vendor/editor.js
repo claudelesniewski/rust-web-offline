@@ -8,13 +8,14 @@ import { acceptCompletion, ifNotIn, startCompletion } from "@codemirror/autocomp
 import { rust, rustLanguage } from "@codemirror/lang-rust";
 import { oneDark } from "@codemirror/theme-one-dark";
 import { rustCompletions } from "./completion.js";
+import { acceptGhost, dropGhost, ghostText } from "./ghost.js";
 
-/** Tab accepts a completion, or asks for one after a word, `.` or `::`;
- *  otherwise it indents. */
+/** Tab accepts a completion or the AI's suggestion, or asks for a
+ *  completion after a word, `.` or `::`; otherwise it indents. */
 const tab = {
   key: "Tab",
   run: (view) => {
-    if (acceptCompletion(view)) return true;
+    if (acceptCompletion(view) || acceptGhost(view)) return true;
     const { head, empty } = view.state.selection.main;
     if (empty && /[\w.:]$/.test(view.state.sliceDoc(head - 1, head))) return startCompletion(view);
     return indentMore(view);
@@ -27,8 +28,10 @@ const tab = {
  *  its own state (and undo history) via `open(name, text)`. */
 export function createEditor(parent, { onChange, keys = [] }) {
   const states = new Map();
+  let suggest = null;
   const extensions = [
-    keymap.of([...keys, tab]),
+    keymap.of([...keys, tab, { key: "Escape", run: dropGhost }]),
+    ghostText(() => suggest),
     basicSetup,
     indentUnit.of("    "),
     rust(),
@@ -53,5 +56,8 @@ export function createEditor(parent, { onChange, keys = [] }) {
     replace(text) { view.dispatch({ changes: { from: 0, to: view.state.doc.length, insert: text } }); },
     /** Remember the current state of `name` (call before switching away). */
     save(name) { states.set(name, view.state); },
+    /** Turn inline suggestions on with `suggest(prefix, signal)`, which
+     *  returns the rest of the line, or off with null. */
+    setSuggest(fn) { suggest = fn; },
   };
 }

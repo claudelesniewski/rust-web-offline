@@ -33,6 +33,8 @@ header {
 #status, #offline { color: var(--muted); font-size: 13px; white-space: nowrap; }
 #offline.ready { color: var(--ok); }
 header a { color: var(--muted); font-size: 13px; }
+#ai-toggle { display: flex; align-items: center; gap: 4px; cursor: pointer; }
+#ai-status { color: var(--muted); font-size: 13px; }
 #offline.pending { color: var(--warn); }
 
 main {

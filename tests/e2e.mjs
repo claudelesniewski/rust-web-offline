@@ -130,15 +130,19 @@ try {
     await page.keyboard.press("ArrowUp");
     await page.keyboard.press("ArrowUp");
     await page.keyboard.press("End");
-    const accept = async (typed) => {
+    const accept = async (typed, label) => {
       await page.keyboard.type(typed);
-      await page.locator(".cm-tooltip-autocomplete").waitFor();
+      await page.locator(".cm-tooltip-autocomplete li[aria-selected] .cm-completionLabel", { hasText: label })
+        .waitFor({ timeout: 30_000 });
+      // CodeMirror ignores keys for 75 ms after a list appears or changes,
+      // so that one typed just as it does is not taken as a choice.
+      await page.waitForTimeout(150);
       await page.keyboard.press("Tab");
     };
-    await accept("v.pu"); // push
+    await accept("v.pu", "push");
     await page.keyboard.type("(7);");
     await page.keyboard.press("Enter");
-    await accept("prin"); // println!(|)
+    await accept("printl", "println!"); // println!(|)
     await page.keyboard.type('"{:?}", v');
     await page.keyboard.press("End");
     await page.keyboard.type(";");

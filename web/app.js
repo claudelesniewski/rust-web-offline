@@ -341,6 +341,12 @@ const terminal = new Terminal($("output"), $("stdin"), {
     terminal.write("info", "^D\n");
     compiler?.postMessage({ type: "eof", id: current });
   },
+  // A place in the code, in an error or a panic: go there.
+  onLocation(file, line, col) {
+    if (!files.has(file)) return;
+    if (file !== active) openFile(file);
+    editor.goto(line, col);
+  },
 });
 let compiler = null;
 let ready = false;
@@ -380,6 +386,7 @@ function startCompiler() {
 const secs = (ms) => `${(ms / 1000).toFixed(1)} s`;
 
 function onDone(m) {
+  terminal.linkify((file) => files.has(file));
   if (m.stage === "compile") {
     if (m.code === 0) {
       terminal.write("info", `Compiled in ${secs(m.ms)}. Running…\n`);

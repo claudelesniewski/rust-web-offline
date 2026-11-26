@@ -52,12 +52,27 @@ export class AnsiParser {
   }
 }
 
+/** The places in the project that `text` names, as rustc and panics do
+ *  (src/main.rs:3:7): [{ index, length, file, line, col }], where `file` is
+ *  relative to src/. Not paths of the standard library's sources, which
+ *  merely contain "src/". */
+export function findLocations(text) {
+  return [...text.matchAll(/(?<![\w/.-])src\/((?:\w+\/)*\w+\.rs):(\d+):(\d+)/g)].map((m) => ({
+    index: m.index, length: m[0].length, file: m[1], line: Number(m[2]), col: Number(m[3]),
+  }));
+}
+
 export class Terminal {
-  /** `output` is the element text goes into; `input` the stdin line. */
-  constructor(output, input, { onInput, onEof }) {
+  /** `output` is the element text goes into; `input` the stdin line.
+   *  `onLocation(file, line, col)` follows a click on a place in the code. */
+  constructor(output, input, { onInput, onEof, onLocation }) {
     this.output = output;
     this.input = input;
     this.parsers = new Map();
+    output.addEventListener("click", (e) => {
+      const link = e.target.closest("a.loc");
+      if (link) onLocation(link.dataset.file, Number(link.dataset.line), Number(link.dataset.col));
+    });
     input.addEventListener("keydown", (e) => {
       if (e.key === "Enter") {
         e.preventDefault();
@@ -88,6 +103,34 @@ export class Terminal {
       this.output.append(span);
     }
     if (atBottom) this.output.scrollTop = this.output.scrollHeight;
+  }
+
+  /** Make the places in the output that name a file for which `known(file)`
+   *  holds into links. Done when output ends, not as it comes, as a place
+   *  may come in two chunks. */
+  linkify(known) {
+    const walker = document.createTreeWalker(this.output, NodeFilter.SHOW_TEXT);
+    const nodes = [];
+    for (let n = walker.nextNode(); n; n = walker.nextNode()) if (!n.parentElement.closest("a.loc")) nodes.push(n);
+    for (const node of nodes) {
+      const text = node.textContent;
+      const found = findLocations(text).filter((l) => known(l.file));
+      if (!found.length) continue;
+      const parts = [];
+      let at = 0;
+      for (const l of found) {
+        parts.push(text.slice(at, l.index));
+        const a = document.createElement("a");
+        a.className = "loc";
+        a.textContent = text.slice(l.index, l.index + l.length);
+        a.title = `Go to ${a.textContent}`;
+        Object.assign(a.dataset, { file: l.file, line: l.line, col: l.col });
+        parts.push(a);
+        at = l.index + l.length;
+      }
+      parts.push(text.slice(at));
+      node.replaceWith(...parts);
+    }
   }
 
   /** Enable the stdin line while a program runs. */

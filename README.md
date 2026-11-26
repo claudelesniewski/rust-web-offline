@@ -6,7 +6,8 @@ with no network at all. The compiler (`rustc`), the linker and the standard
 library run as WebAssembly on your machine; nothing is sent to a server.
 
 - Editor with Rust highlighting and Tab completion (CodeMirror 6), **Run** (Ctrl-Enter),
-  **Format** (rustfmt), and a terminal panel with stdin.
+  **Format** (rustfmt), and a terminal panel with stdin. Places in compiler
+  errors and panics (`src/main.rs:3:7`) are links to the code.
 - Projects, each with its own files, saved automatically in the browser
   (IndexedDB). Other files are modules, in folders too: `mod foo;` uses
   `foo.rs` or `foo/mod.rs`. Import `.rs` files; export one file or a whole

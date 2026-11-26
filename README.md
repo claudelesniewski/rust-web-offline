@@ -13,7 +13,8 @@ library run as WebAssembly on your machine; nothing is sent to a server.
 - Standard library only (no crates.io).
 - Optional **AI** suggestions: a small language model (SmolLM2-135M, a 145 MB
   download when turned on) runs on the device and suggests the rest of the
-  line, shown greyed out; Tab takes it. Small means often wrong.
+  line, shown greyed out; Tab takes it (Shift-Tab when a completion list is
+  open too). Small means often wrong.
 - Offline documentation: the Rust Book, the Reference, and the std, core and
   alloc API docs with search (**Docs** menu).
 

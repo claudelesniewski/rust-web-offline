@@ -155,6 +155,15 @@ try {
     await page.keyboard.press("Tab");
     await page.locator(".cm-ghost").waitFor({ state: "detached" });
     assert.ok((await page.locator(".cm-content").innerText()).includes(ghost.trim()));
+    // With a completion list open too, Tab is for the list; Shift-Tab takes
+    // the suggestion, and closes the list.
+    await page.keyboard.press("Enter");
+    await page.keyboard.type("    pri");
+    await page.locator(".cm-tooltip-autocomplete").waitFor();
+    const both = await page.locator(".cm-ghost").innerText({ timeout: 30_000 });
+    await page.keyboard.press("Shift+Tab");
+    await page.locator(".cm-tooltip-autocomplete").waitFor({ state: "detached" });
+    assert.ok((await page.locator(".cm-content").innerText()).includes(`pri${both}`));
   });
 
   await step("format with rustfmt", async () => {

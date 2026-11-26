@@ -83,10 +83,11 @@ export function userMethods(sources, name) {
   return [...methods.values()];
 }
 
-/** Whether rustc's output has an error on line `line` (from 1) of `file`:
- *  then it is about what comes before the dot (as `cannot find value`). */
+/** Whether rustc's output has an error (not a warning) on line `line`
+ *  (from 1) of `file`. */
 export function errorOnLine(output, file, line) {
-  return output.includes(`--> src/${file}:${line}:`);
+  const at = `src/${file}:${line}:`;
+  return [...output.matchAll(/^error\b.*\n\s*--> (\S+)/gm)].some((m) => m[1].startsWith(at));
 }
 
 /** Completion options for the word at [from, to) after a dot in file

@@ -57,11 +57,12 @@ async function aiReady(p) {
   await p.locator('#ai-toggle[data-state="on"]').waitFor({ state: "attached", timeout: 60_000 });
 }
 
-/** Type at the end of the file; return the AI's suggestion. */
+/** Type a comment at the end of the file; return the AI's suggestion. (The
+ *  test model writes stories, not Rust: only in a comment do they compile.) */
 async function suggestion(p) {
   await p.locator(".cm-content").click();
   await p.keyboard.press("ControlOrMeta+End");
-  await p.keyboard.type("    let x = ");
+  await p.keyboard.type("// Once upon a");
   await p.locator(".cm-ghost").waitFor({ timeout: 30_000 });
   return p.locator(".cm-ghost").innerText();
 }
@@ -189,20 +190,42 @@ try {
     await page.locator("#ai").check();
     await page.locator("#options summary").click();
     await aiReady(page);
-    await setCode("main.rs", "fn main() {\n");
+    await setCode("main.rs", "fn main() {}\n");
     const ghost = await suggestion(page);
     await page.keyboard.press("Tab");
     await page.locator(".cm-ghost").waitFor({ state: "detached" });
     assert.ok((await page.locator(".cm-content").innerText()).includes(ghost.trim()));
-    // With a completion list open too, Tab is for the list; Shift-Tab takes
-    // the suggestion, and closes the list.
+    // In code, stories don't compile: no suggestion.
     await page.keyboard.press("Enter");
-    await page.keyboard.type("    pri");
+    await page.keyboard.type("const X: i32 = ");
+    await page.waitForTimeout(3000);
+    assert.equal(await page.locator(".cm-ghost").count(), 0);
+  });
+
+  await step("Shift-Tab takes the suggestion when a completion list is open too", async () => {
+    // A second editor, whose suggestions come from a fake model.
+    await page.evaluate(async () => {
+      const { createEditor } = await import("./editor.js");
+      const parent = document.createElement("div");
+      parent.id = "test-editor";
+      parent.style = "position: fixed; inset: 0 auto auto 0; width: 600px; height: 200px; z-index: 100";
+      document.body.append(parent);
+      const editor = createEditor(parent, { onChange() {} });
+      editor.open("test.rs", "fn main() {\n}\n");
+      editor.setSuggest(async () => 'ntln!("hi");');
+      window.testEditor = editor;
+    });
+    await page.locator("#test-editor .cm-content").click();
+    await page.keyboard.press("ControlOrMeta+Home");
+    await page.keyboard.press("End");
+    await page.keyboard.press("Enter");
+    await page.keyboard.type("pri");
     await page.locator(".cm-tooltip-autocomplete").waitFor();
-    const both = await page.locator(".cm-ghost").innerText({ timeout: 30_000 });
+    await page.locator("#test-editor .cm-ghost").waitFor();
     await page.keyboard.press("Shift+Tab");
     await page.locator(".cm-tooltip-autocomplete").waitFor({ state: "detached" });
-    assert.ok((await page.locator(".cm-content").innerText()).includes(`pri${both}`));
+    assert.match(await page.evaluate(() => window.testEditor.text()), /^\s*println!\("hi"\);$/m);
+    await page.evaluate(() => document.querySelector("#test-editor").remove());
   });
 
   await step("format with rustfmt", async () => {

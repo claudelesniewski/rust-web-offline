@@ -7,6 +7,7 @@ import { zip } from "./zip.js";
 import * as store from "./store.js";
 import * as lm from "./lm.js";
 import { createTypeCompletion } from "./types.js";
+import { createSuggester } from "./suggest.js";
 
 const $ = (id) => document.getElementById(id);
 const setStatus = (text) => { $("status").textContent = text; };
@@ -361,10 +362,12 @@ function check(source) {
 
 const typeCompletion = createTypeCompletion({ check, fetchText: async (path) => (await fetch(path)).text() });
 
+const typeMembers = (doc, from, to) => typeCompletion(doc, from, to, [...files.values()], active);
+
 function setTypes(on) {
   $("types").checked = on;
   store.setSetting("types", on);
-  editor.setTypeMethods(on ? (doc, from, to) => typeCompletion(doc, from, to, [...files.values()], active) : null);
+  editor.setTypeMethods(on ? typeMembers : null);
 }
 
 $("types").onchange = (e) => setTypes(e.target.checked);
@@ -398,7 +401,13 @@ async function setAI(on, { ask = true } = {}) {
     state("loading", "loading…");
     model = await lm.loadModel((done, total) => state("loading", `${mb(done)} / ${mb(total)} MB`));
     if (!$("ai").checked) return model.unload(); // turned off meanwhile
-    editor.setSuggest(model.complete);
+    editor.setSuggest(createSuggester({
+      complete: model.complete,
+      // Right after a dot, only the members there; with type-aware completion on.
+      members: (doc, from, to) => ($("types").checked ? typeMembers(doc, from, to) : null),
+      check,
+      main: () => active,
+    }));
     state("on");
   } catch (e) {
     $("ai").checked = false;

@@ -1,5 +1,5 @@
 // Inline suggestions ("ghost text"): after a pause in typing at the end of a
-// line, ask `suggest(prefix, signal)` for the rest of the line and show it
+// line, ask `suggest(doc, pos, signal)` for the rest of the line and show it
 // greyed out after the cursor. Tab or Shift-Tab takes it (see editor.js);
 // typing, moving or Escape drops it.
 import { StateEffect, StateField } from "@codemirror/state";
@@ -74,7 +74,7 @@ export function ghostText(getSuggest) {
       const doc = this.view.state.doc;
       let text;
       try {
-        text = await suggest(doc.sliceString(0, head), abort.signal);
+        text = await suggest(doc.toString(), head, abort.signal);
       } catch {
         return; // stopped, or the model failed: no suggestion
       }

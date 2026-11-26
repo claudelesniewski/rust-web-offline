@@ -100,15 +100,31 @@ service worker (sw.js): precache everything, serve from cache (docs from
   into the site but not precached) and SmolLM2-135M at 8 bits (145 MB, from
   Hugging Face at a pinned revision, checked by SHA-256) into a cache of
   their own, which the service worker keeps across versions. After a pause
-  in typing at the end of a line, `vendor/ghost.js` asks the model for the
-  rest of it: the prompt is a short preamble of idiomatic Rust (which steers
-  this small, general model away from Java and C++ habits) and the last
-  1,500 characters before the cursor. Measured in headless Chromium on 4
-  cores: 0.8 to 1.8 s per suggestion; Qwen2.5-Coder-0.5B, a much better code
-  model, is 430 MB at 4 bits, too much for small Chromebooks. Chat-tuned
-  variants (SmolLM2-135M-Instruct, kimi-coder-135m) complete code no better
-  (5 of 12 test lines, as the base model) and answer Rust questions
-  confidently wrongly, so offline chat would need a much larger model.
+  in typing at the end of a line, `vendor/ghost.js` asks for the rest of it
+  (`web/suggest.js`). The prompt is a short preamble of idiomatic Rust (which
+  steers this small, general model away from Java and C++ habits) and the
+  last 1,500 characters before the cursor. The toolchain then helps:
+  - Right after a dot, type-aware completion finds the members there, and a
+    llama.cpp grammar (GBNF) makes the model start with one of them.
+  - The suggestion is type-checked in place, and not shown if rustc finds
+    an error on its line (or if it is only a comment, which always compiles).
+
+  Measured on 18 lines of Rust (`push(i)`, `read_line(&mut input)`,
+  `.iter().enumerate()`, …), in headless Chromium on 4 cores:
+
+  | | right (and compile) | shown | shown that compile | time |
+  | --- | --- | --- | --- | --- |
+  | model alone, indentation dropped from the prompt (before) | 3 | 18 | 4 | 0.6 s |
+  | model alone, only the last space dropped | 6 | 18 | 9 | 0.5 s |
+  | and held to the type's members after a dot | 8 | 18 | 12 | 0.7 s |
+  | and type-checked (now) | 8 | 12 | 12 | 0.8 s |
+
+  Trying other samples when the check fails found one more right line, and
+  was 40 to 90% slower. Qwen2.5-Coder-0.5B, a much better code model, is
+  430 MB at 4 bits, too much for small Chromebooks. Chat-tuned variants
+  (SmolLM2-135M-Instruct, kimi-coder-135m) complete code no better (5 of 12
+  test lines, as the base model) and answer Rust questions confidently
+  wrongly, so offline chat would need a much larger model.
 - **Files.** IndexedDB (`web/store.js`), saved 400 ms after each edit and when
   the page is hidden. File names are Rust module names ending in `.rs`.
 

@@ -1,0 +1,87 @@
+# Design
+
+## Choosing a toolchain
+
+Building rustc for wasm is a large project, so this app reuses a prebuilt one.
+Candidates, as evaluated in November 2026:
+
+| Project | Licence | Rust | Size | Prebuilt | Verdict |
+| --- | --- | --- | --- | --- | --- |
+| [rust-playground-inbrowser](https://github.com/ryancbuckley/rust-playground-inbrowser) | Apache-2.0 | nightly-2026-10-19 | ~57 MB | yes, in its published site | **chosen** |
+| [rust-wasm-serve](https://github.com/rntz-llm/rust-wasm-serve) | none stated | 1.83-dev (2024) | ~56 MB | yes (oligamiq/rust_wasm v3.0.0) | no licence, so its code can't be reused; older rustc |
+| [rubrc](https://github.com/oligamiq/rubrc) | MIT/Apache in package.json, no licence file | — | much larger (cargo, clang, rust-analyzer) | demo site only | self-described pre-release and unstable; heavy |
+| [wasm-rustc](https://github.com/Mearman/wasm-rustc) | MIT/Apache | recent | ~224 MB | yes (GitHub Releases) | can't link yet (emits `.o` only), so can't run programs |
+
+rust-playground-inbrowser compiles with rustc's Cranelift backend to wasm
+objects, links them with the Wild linker (also in wasm), and runs on a small
+WASI kernel ([browser-kernel](https://github.com/ryancbuckley/browser-kernel)).
+It is recent, permissively licensed, fast (about a second for hello world),
+and includes rustfmt. Its crates.io support (124 MB) is left out.
+
+`scripts/fetch-toolchain.sh` downloads its files from one pinned commit of
+the published site, checked against pinned SHA-256 hashes. Nothing binary is
+committed here.
+
+## Hosting and cross-origin isolation
+
+rustc runs threads, which need `SharedArrayBuffer`, which needs the page to be
+cross-origin isolated (`Cross-Origin-Opener-Policy: same-origin` and
+`Cross-Origin-Embedder-Policy: require-corp`).
+
+**Recommendation: let the service worker add the headers** (`web/sw.js`).
+The app needs a service worker anyway to work offline, and offline every
+response comes from that worker's cache, so the worker must produce correct
+headers regardless of the host. Doing it there makes the site work on any
+static host, including GitHub Pages, which cannot set headers. The only cost
+is that the very first visit reloads itself once, when the worker takes
+control.
+
+For hosts that can set headers (Cloudflare Pages, Netlify), `web/_headers`
+sends them as well, so even the first visit is isolated without the reload.
+
+Which host:
+
+- **GitHub Pages** (recommended if the repository can be public): deploys from
+  this repository with a workflow (`.github/workflows/pages.yml`), with no
+  other account. Free Pages requires a public repository.
+- **Cloudflare Pages** (if the repository must stay private): free for private
+  repositories and reads `_headers`. It allows files of up to 25 MiB, so the
+  build splits toolchain files into 20 MiB parts.
+
+## How it works
+
+```
+page (app.js)                   compiler worker                  thread workers
+ editor, files, terminal  ───►  browser-kernel: in-memory FS,  ─► one per wasm thread,
+ IndexedDB store          ◄───  WASI syscalls, processes          sharing memory
+                                 rustc.wasm → wild.wasm → your program
+service worker (sw.js): precache everything, serve from cache, add COOP/COEP
+```
+
+- **Compiling.** `compiler-worker.js` loads rustc, the linker and the sysroot
+  into the kernel once. Run writes all files into `src/` and compiles the open
+  file as the crate root for `wasm32-wasip1-threads`; rustc calls the linker
+  through the kernel; the resulting wasm runs as a new process, with stdin
+  piped from the terminal's input line.
+- **Offline.** At build time `scripts/stamp-sw.mjs` writes into `sw.js` a
+  version (a hash of the site) and the list of every file with its size. The
+  worker downloads them one at a time into a cache named after the version,
+  reporting progress to the page, which shows "Ready for offline use" when
+  all are cached. Requests are answered cache-first. The page calls
+  `navigator.storage.persist()` so the browser doesn't evict the cache.
+- **Updates.** A new deploy changes `sw.js`, so the browser installs the new
+  version in the background. Toolchain files have content-hashed names, so
+  unchanged ones are copied from the old cache instead of downloaded. When
+  the new version takes over, the page offers "Update ready: reload".
+- **Files.** IndexedDB (`web/store.js`), saved 400 ms after each edit and when
+  the page is hidden. File names are Rust module names ending in `.rs`.
+
+## Limits
+
+- About 60 MB is cached; the first visit downloads all of it.
+- Memory: rustc reserves up to 1 GiB of address space (512 MiB on devices
+  reporting under 4 GB of RAM). Very large programs may run out.
+- Standard library only; one crate per run; programs are wasm, so no
+  processes, networking or real filesystem.
+- The toolchain is a nightly using the Cranelift backend. Its author reports
+  2,640 of 2,650 rustc run-pass tests behaving as with LLVM.

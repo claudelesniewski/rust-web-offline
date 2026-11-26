@@ -1,0 +1,49 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Rust Offline</title>
+<meta name="description" content="Write, compile and run Rust in the browser, offline.">
+<meta name="theme-color" content="#1e2127">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="icons/icon-192.png">
+<link rel="stylesheet" href="style.css">
+<script type="module" src="app.js"></script>
+</head>
+<body>
+<header>
+  <button id="toggle-files" title="Show or hide the file list">☰</button>
+  <strong class="title">Rust Offline</strong>
+  <button id="run" class="primary" disabled title="Compile and run (Ctrl-Enter)">▶ Run</button>
+  <button id="stop" disabled title="Stop the running program">■ Stop</button>
+  <button id="format" disabled title="Format with rustfmt (Ctrl-Shift-F)">Format</button>
+  <select id="examples" title="Open an example as a new file">
+    <option value="">Examples…</option>
+  </select>
+  <span class="spacer"></span>
+  <span id="status">Starting…</span>
+  <span id="offline" title="Whether everything is saved for offline use">Offline: checking…</span>
+  <a href="toolchain/licenses.html" target="_blank" title="Licences of the Rust toolchain">Licences</a>
+</header>
+<main id="main">
+  <nav id="files">
+    <ul id="file-list"></ul>
+    <div class="file-actions">
+      <button id="new-file">New</button>
+      <button id="rename-file">Rename</button>
+      <button id="delete-file">Delete</button>
+      <button id="import" title="Import .rs files from your computer">Import…</button>
+      <button id="export" title="Download the open file">Export file</button>
+      <button id="export-all" title="Download all files as a .zip">Export all</button>
+      <input id="import-input" type="file" accept=".rs,text/plain" multiple hidden>
+    </div>
+  </nav>
+  <section id="editor"></section>
+  <section id="terminal">
+    <pre id="output" aria-live="polite"></pre>
+    <input id="stdin" disabled autocomplete="off" spellcheck="false" aria-label="Program input">
+  </section>
+</main>
+</body>
+</html>

@@ -4,14 +4,16 @@ import { EditorState } from "@codemirror/state";
 import { EditorView, keymap, tooltips } from "@codemirror/view";
 import { indentLess, indentMore } from "@codemirror/commands";
 import { indentUnit } from "@codemirror/language";
-import { acceptCompletion, ifNotIn, startCompletion } from "@codemirror/autocomplete";
+import { acceptCompletion, closeCompletion, ifNotIn, startCompletion } from "@codemirror/autocomplete";
 import { rust, rustLanguage } from "@codemirror/lang-rust";
 import { oneDark } from "@codemirror/theme-one-dark";
 import { rustCompletions } from "./completion.js";
 import { acceptGhost, dropGhost, ghostText } from "./ghost.js";
 
-/** Tab accepts a completion or the AI's suggestion, or asks for a
- *  completion after a word, `.` or `::`; otherwise it indents. */
+/** Tab accepts a completion from the list, or else the AI's suggestion, or
+ *  asks for a completion after a word, `.` or `::`; otherwise it indents.
+ *  Shift-Tab accepts the AI's suggestion even when a list is open too
+ *  (closing it); otherwise it outdents. */
 const tab = {
   key: "Tab",
   run: (view) => {
@@ -20,7 +22,11 @@ const tab = {
     if (empty && /[\w.:]$/.test(view.state.sliceDoc(head - 1, head))) return startCompletion(view);
     return indentMore(view);
   },
-  shift: indentLess,
+  shift: (view) => {
+    if (!acceptGhost(view)) return indentLess(view);
+    closeCompletion(view);
+    return true;
+  },
 };
 
 /** An editor in `parent`. `onChange(text)` follows every edit; `keys` are

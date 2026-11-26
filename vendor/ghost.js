@@ -1,7 +1,7 @@
 // Inline suggestions ("ghost text"): after a pause in typing at the end of a
 // line, ask `suggest(prefix, signal)` for the rest of the line and show it
-// greyed out after the cursor. Tab takes it (see editor.js); typing,
-// moving or Escape drops it.
+// greyed out after the cursor. Tab or Shift-Tab takes it (see editor.js);
+// typing, moving or Escape drops it.
 import { StateEffect, StateField } from "@codemirror/state";
 import { Decoration, EditorView, ViewPlugin, WidgetType } from "@codemirror/view";
 

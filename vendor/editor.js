@@ -66,8 +66,8 @@ export function createEditor(parent, { onChange, keys = [] }) {
     replace(text) { view.dispatch({ changes: { from: 0, to: view.state.doc.length, insert: text } }); },
     /** Remember the current state of `name` (call before switching away). */
     save(name) { states.set(name, view.state); },
-    /** Turn inline suggestions on with `suggest(prefix, signal)`, which
-     *  returns the rest of the line, or off with null. */
+    /** Turn inline suggestions on with `suggest(doc, pos, signal)`, which
+     *  returns the rest of the line at `pos`, or off with null. */
     setSuggest(fn) { suggest = fn; },
     /** Turn type-aware completion on with `fn(doc, from, to)`, which returns
      *  the options after a dot (or null), or off with null. */

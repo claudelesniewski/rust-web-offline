@@ -54,7 +54,7 @@ async function run() {
 
 /** Wait for AI suggestions to be on, their model loaded. */
 async function aiReady(p) {
-  await p.locator('#ai-toggle[data-state="on"]').waitFor({ timeout: 60_000 });
+  await p.locator('#ai-toggle[data-state="on"]').waitFor({ state: "attached", timeout: 60_000 });
 }
 
 /** Type at the end of the file; return the AI's suggestion. */
@@ -130,15 +130,19 @@ try {
     await page.keyboard.press("ArrowUp");
     await page.keyboard.press("ArrowUp");
     await page.keyboard.press("End");
-    const accept = async (typed) => {
+    const accept = async (typed, label) => {
       await page.keyboard.type(typed);
-      await page.locator(".cm-tooltip-autocomplete").waitFor();
+      await page.locator(".cm-tooltip-autocomplete li[aria-selected] .cm-completionLabel", { hasText: label })
+        .waitFor({ timeout: 30_000 });
+      // CodeMirror ignores keys for 75 ms after a list appears or changes,
+      // so that one typed just as it does is not taken as a choice.
+      await page.waitForTimeout(150);
       await page.keyboard.press("Tab");
     };
-    await accept("v.pu"); // push
+    await accept("v.pu", "push");
     await page.keyboard.type("(7);");
     await page.keyboard.press("Enter");
-    await accept("prin"); // println!(|)
+    await accept("printl", "println!"); // println!(|)
     await page.keyboard.type('"{:?}", v');
     await page.keyboard.press("End");
     await page.keyboard.type(";");
@@ -146,9 +150,38 @@ try {
     assert.match(out, /^\[7\]$/m, out);
   });
 
+  await step("type-aware completion", async () => {
+    await setCode("main.rs", [
+      "struct P { x: i32 }",
+      "impl P { fn get(&self) -> i32 { self.x } }",
+      "fn main() {",
+      "    let v = vec![1];",
+      "    let s = String::new();",
+      "    let p = P { x: 1 };",
+      "}",
+    ].join("\n"));
+    const optionsAfter = async (expr) => {
+      await page.keyboard.press("ControlOrMeta+End");
+      await page.keyboard.press("Home");
+      await page.keyboard.type(`    ${expr}`);
+      await page.locator(".cm-tooltip-autocomplete").waitFor({ timeout: 30_000 });
+      const labels = await page.locator(".cm-completionLabel").allInnerTexts();
+      await page.keyboard.press("Escape");
+      await page.keyboard.press("Shift+Home");
+      await page.keyboard.press("Delete");
+      return labels;
+    };
+    const vec = await optionsAfter("v.");
+    assert.ok(vec.includes("push") && vec.includes("sort") && !vec.includes("push_str"), vec.join(" "));
+    assert.ok((await optionsAfter("s.")).includes("push_str"));
+    assert.deepEqual((await optionsAfter("p.")).sort(), ["get", "x"]);
+  });
+
   await step("AI suggestions", async () => {
     page.once("dialog", (d) => d.accept());
+    await page.locator("#options summary").click();
     await page.locator("#ai").check();
+    await page.locator("#options summary").click();
     await aiReady(page);
     await setCode("main.rs", "fn main() {\n");
     const ghost = await suggestion(page);

@@ -11,7 +11,9 @@ library run as WebAssembly on your machine; nothing is sent to a server.
   are modules: `mod foo;` uses `foo.rs`. Import `.rs` files; export one file
   or all of them as a `.zip`.
 - Standard library only (no crates.io).
-- Optional **AI** suggestions: a small language model (SmolLM2-135M, a 145 MB
+- Type-aware completion after `.` (on by default, in **Options**): the
+  compiler finds the type, and the offline docs list its methods.
+- Optional **AI** suggestions (in **Options**): a small language model (SmolLM2-135M, a 145 MB
   download when turned on) runs on the device and suggests the rest of the
   line, shown greyed out; Tab takes it (Shift-Tab when a completion list is
   open too). Small means often wrong.

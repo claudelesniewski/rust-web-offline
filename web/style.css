@@ -33,7 +33,14 @@ header {
 #status, #offline { color: var(--muted); font-size: 13px; white-space: nowrap; }
 #offline.ready { color: var(--ok); }
 header a { color: var(--muted); font-size: 13px; }
-#ai-toggle { display: flex; align-items: center; gap: 4px; cursor: pointer; }
+#options { position: relative; }
+#options summary { cursor: pointer; list-style: none; padding: 4px 10px; border: 1px solid var(--border); border-radius: 4px; }
+#options .menu {
+  position: absolute; top: calc(100% + 4px); left: 0; z-index: 10; width: max-content;
+  display: flex; flex-direction: column; gap: 8px; padding: 10px 12px;
+  background: var(--panel); border: 1px solid var(--border); border-radius: 4px;
+}
+#options label { display: flex; align-items: center; gap: 6px; cursor: pointer; }
 #ai-status { color: var(--muted); font-size: 13px; }
 #offline.pending { color: var(--warn); }
 
@@ -92,3 +99,10 @@ main.hide-files #files { display: none; }
   main.show-files { grid-template-columns: 150px 1fr; }
   main.show-files #files { display: flex; }
 }
+
+/* Completion lists: long signatures are cut, leaving room for the docs beside them. */
+.cm-tooltip-autocomplete .cm-completionDetail {
+  display: inline-block; max-width: 18em; overflow: hidden; text-overflow: ellipsis;
+  white-space: nowrap; vertical-align: bottom;
+}
+.cm-tooltip.cm-completionInfo { max-width: 360px; }

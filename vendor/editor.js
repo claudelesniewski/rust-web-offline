@@ -1,7 +1,7 @@
 // CodeMirror 6 with Rust highlighting, bundled by scripts/build.sh into editor.js.
 import { basicSetup } from "codemirror";
 import { EditorState } from "@codemirror/state";
-import { EditorView, keymap } from "@codemirror/view";
+import { EditorView, keymap, tooltips } from "@codemirror/view";
 import { indentLess, indentMore } from "@codemirror/commands";
 import { indentUnit } from "@codemirror/language";
 import { acceptCompletion, closeCompletion, ifNotIn, startCompletion } from "@codemirror/autocomplete";
@@ -35,14 +35,18 @@ const tab = {
 export function createEditor(parent, { onChange, keys = [] }) {
   const states = new Map();
   let suggest = null;
+  let typeMethods = null;
   const extensions = [
     keymap.of([...keys, tab, { key: "Escape", run: dropGhost }]),
     ghostText(() => suggest),
+    // Completion lists and their docs may reach beyond the editor's pane.
+    tooltips({ parent: document.body }),
     basicSetup,
     indentUnit.of("    "),
     rust(),
     rustLanguage.data.of({
-      autocomplete: ifNotIn(["String", "RawString", "Char", "LineComment", "BlockComment"], rustCompletions),
+      autocomplete: ifNotIn(["String", "RawString", "Char", "LineComment", "BlockComment"],
+        rustCompletions((...args) => typeMethods?.(...args) ?? null)),
     }),
     oneDark,
     EditorView.updateListener.of((u) => { if (u.docChanged) onChange(u.state.doc.toString()); }),
@@ -65,5 +69,8 @@ export function createEditor(parent, { onChange, keys = [] }) {
     /** Turn inline suggestions on with `suggest(prefix, signal)`, which
      *  returns the rest of the line, or off with null. */
     setSuggest(fn) { suggest = fn; },
+    /** Turn type-aware completion on with `fn(doc, from, to)`, which returns
+     *  the options after a dot (or null), or off with null. */
+    setTypeMethods(fn) { typeMethods = fn; },
   };
 }

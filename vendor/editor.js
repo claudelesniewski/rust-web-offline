@@ -2,10 +2,25 @@
 import { basicSetup } from "codemirror";
 import { EditorState } from "@codemirror/state";
 import { EditorView, keymap } from "@codemirror/view";
-import { indentWithTab } from "@codemirror/commands";
+import { indentLess, indentMore } from "@codemirror/commands";
 import { indentUnit } from "@codemirror/language";
-import { rust } from "@codemirror/lang-rust";
+import { acceptCompletion, ifNotIn, startCompletion } from "@codemirror/autocomplete";
+import { rust, rustLanguage } from "@codemirror/lang-rust";
 import { oneDark } from "@codemirror/theme-one-dark";
+import { rustCompletions } from "./completion.js";
+
+/** Tab accepts a completion, or asks for one after a word, `.` or `::`;
+ *  otherwise it indents. */
+const tab = {
+  key: "Tab",
+  run: (view) => {
+    if (acceptCompletion(view)) return true;
+    const { head, empty } = view.state.selection.main;
+    if (empty && /[\w.:]$/.test(view.state.sliceDoc(head - 1, head))) return startCompletion(view);
+    return indentMore(view);
+  },
+  shift: indentLess,
+};
 
 /** An editor in `parent`. `onChange(text)` follows every edit; `keys` are
  *  extra bindings, as in CodeMirror's keymap ({ key, run }). Each file gets
@@ -13,10 +28,13 @@ import { oneDark } from "@codemirror/theme-one-dark";
 export function createEditor(parent, { onChange, keys = [] }) {
   const states = new Map();
   const extensions = [
-    keymap.of([...keys, indentWithTab]),
+    keymap.of([...keys, tab]),
     basicSetup,
     indentUnit.of("    "),
     rust(),
+    rustLanguage.data.of({
+      autocomplete: ifNotIn(["String", "RawString", "Char", "LineComment", "BlockComment"], rustCompletions),
+    }),
     oneDark,
     EditorView.updateListener.of((u) => { if (u.docChanged) onChange(u.state.doc.toString()); }),
   ];

@@ -102,6 +102,28 @@ try {
     assert.match(await run(), /^42$/m);
   });
 
+  await step("tab completion", async () => {
+    await setCode("main.rs", "fn main() {\n    let mut v = Vec::new();\n    \n}\n");
+    await page.keyboard.press("ControlOrMeta+End");
+    await page.keyboard.press("ArrowUp");
+    await page.keyboard.press("ArrowUp");
+    await page.keyboard.press("End");
+    const accept = async (typed) => {
+      await page.keyboard.type(typed);
+      await page.locator(".cm-tooltip-autocomplete").waitFor();
+      await page.keyboard.press("Tab");
+    };
+    await accept("v.pu"); // push
+    await page.keyboard.type("(7);");
+    await page.keyboard.press("Enter");
+    await accept("prin"); // println!(|)
+    await page.keyboard.type('"{:?}", v');
+    await page.keyboard.press("End");
+    await page.keyboard.type(";");
+    const out = await run();
+    assert.match(out, /^\[7\]$/m, out);
+  });
+
   await step("format with rustfmt", async () => {
     await setCode("geometry.rs", "pub fn double(x:i32)->i32{x*2}\n");
     await page.locator("#format:not([disabled])").click();

@@ -6,6 +6,7 @@ import { EXAMPLES } from "./examples.js";
 import { zip } from "./zip.js";
 import * as store from "./store.js";
 import * as lm from "./lm.js";
+import { createTypeCompletion } from "./types.js";
 
 const $ = (id) => document.getElementById(id);
 const setStatus = (text) => { $("status").textContent = text; };
@@ -277,6 +278,10 @@ function startCompiler() {
     else if (m.type === "ready") {
       ready = true;
       setBusy(false);
+    } else if (checks.has(m.id)) {
+      // A type check for completion: its diagnostics, or nothing if it failed.
+      checks.get(m.id)(m.type === "checked" ? m.output : "");
+      checks.delete(m.id);
     } else if (m.id !== undefined && m.id !== current) {
       // From a request that was stopped.
     } else if (m.type === "output") terminal.write(m.stream, m.text);
@@ -340,6 +345,30 @@ function stop() {
   compiler.postMessage({ type: "kill", id: current });
 }
 
+// ---- Type-aware completion -------------------------------------------------
+
+/** Type checks in progress: id -> resolve. */
+const checks = new Map();
+
+/** Type-check the program with `source` as the open file; rustc's output. */
+function check(source) {
+  if (!ready) return Promise.resolve("");
+  const id = nextId++;
+  const list = [...files].map(([name, content]) => ({ name, content: name === active ? source : content }));
+  compiler.postMessage({ type: "check", id, files: list, main: active });
+  return new Promise((resolve) => checks.set(id, resolve));
+}
+
+const typeCompletion = createTypeCompletion({ check, fetchText: async (path) => (await fetch(path)).text() });
+
+function setTypes(on) {
+  $("types").checked = on;
+  store.setSetting("types", on);
+  editor.setTypeMethods(on ? (doc, from, to) => typeCompletion(doc, from, to, [...files.values()]) : null);
+}
+
+$("types").onchange = (e) => setTypes(e.target.checked);
+
 // ---- AI suggestions --------------------------------------------------------
 
 let model = null;
@@ -391,5 +420,6 @@ loadFiles().catch((e) => setStatus(`Could not load your files: ${e}`));
 setupServiceWorker().catch((e) => showOffline("", `Offline: unavailable (${e.message})`));
 requestPersistence();
 store.getSetting("ai").then((on) => { if (on) setAI(true, { ask: false }); });
+store.getSetting("types").then((on) => setTypes(on ?? true));
 if (crossOriginIsolated) startCompiler();
 else setStatus("Setting up…");

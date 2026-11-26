@@ -1,6 +1,7 @@
 // Completion for Rust without a language server: keywords, snippets, common
-// std names and methods, and the words already in the file. It knows nothing
-// of types, so after `.` it offers every common method name.
+// std names and methods, and the words already in the file. After `.` it
+// offers every common method name, unless type-aware completion
+// (web/types.js) finds the methods of the type there.
 import { completeAnyWord, snippetCompletion as snip } from "@codemirror/autocomplete";
 
 const KEYWORDS = ("as async await break const continue crate dyn else enum extern false fn for if impl in let " +
@@ -24,6 +25,8 @@ const METHODS = ("abs as_bytes as_mut as_ref as_slice as_str borrow borrow_mut b
   "rev skip sort sort_by sort_by_key sort_unstable split split_whitespace sqrt starts_with step_by sum swap " +
   "take take_while to_lowercase to_owned to_string to_uppercase trim truncate unwrap unwrap_or " +
   "unwrap_or_default unwrap_or_else values windows with_capacity zip").split(" ");
+
+const COMMON = new Set(METHODS);
 
 /** Associated functions, offered after `::`. */
 const ASSOC = "new with_capacity from default from_str from_utf8 now spawn channel stdin stdout".split(" ");
@@ -50,18 +53,27 @@ const GENERAL = [
 const AFTER_DOT = options(METHODS, "method");
 const AFTER_PATH = [...options(ASSOC, "function"), ...options(TYPES, "type")];
 
-/** The completion source: what fits before the cursor, plus the file's own words. */
-export async function rustCompletions(context) {
-  const word = context.matchBefore(/[A-Za-z_][A-Za-z0-9_]*!?$/);
-  const before = context.state.sliceDoc(Math.max(0, (word?.from ?? context.pos) - 2), word?.from ?? context.pos);
-  if (!word && !context.explicit && !before.endsWith(".")) return null;
-  const from = word?.from ?? context.pos;
-  const list = before.endsWith(".") ? AFTER_DOT : before === "::" ? AFTER_PATH : GENERAL;
-  const words = (await completeAnyWord(context))?.options ?? [];
-  const known = new Set(list.map((o) => o.label));
-  return {
-    from,
-    options: [...list, ...words.filter((w) => !known.has(w.label))],
-    validFor: /^[A-Za-z0-9_]*!?$/,
+/** The completion source: what fits before the cursor, plus the file's
+ *  own words. After a dot, `typeMethods(doc, from, to)` (if it returns a
+ *  list rather than null) gives the methods of the type before the dot. */
+export function rustCompletions(typeMethods = () => null) {
+  return async (context) => {
+    const word = context.matchBefore(/[A-Za-z_][A-Za-z0-9_]*!?$/);
+    const from = word?.from ?? context.pos;
+    const before = context.state.sliceDoc(Math.max(0, from - 2), from);
+    if (!word && !context.explicit && !before.endsWith(".")) return null;
+    if (before.endsWith(".")) {
+      const typed = await typeMethods(context.state.doc.toString(), from, context.pos);
+      // Common methods first.
+      if (typed) return { from, options: typed.map((o) => (COMMON.has(o.label) ? { ...o, boost: 1 } : o)), validFor: /^\w*$/ };
+    }
+    const list = before.endsWith(".") ? AFTER_DOT : before === "::" ? AFTER_PATH : GENERAL;
+    const words = (await completeAnyWord(context))?.options ?? [];
+    const known = new Set(list.map((o) => o.label));
+    return {
+      from,
+      options: [...list, ...words.filter((w) => !known.has(w.label))],
+      validFor: /^[A-Za-z0-9_]*!?$/,
+    };
   };
 }

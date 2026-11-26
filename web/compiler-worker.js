@@ -8,6 +8,8 @@
 //       Compile `main` (one of `files`, all written side by side in src/ so
 //       `mod other;` works) and, if that succeeds, run it.
 //   { type: "format", id, name, content }   rustfmt one file
+//   { type: "check", id, files, main }      type-check only (for type-aware
+//                                           completion); answered by "checked"
 //   { type: "stdin", id, text }              feed the running program
 //   { type: "eof", id }                      close its stdin
 //   { type: "kill", id }                     stop compiling or running
@@ -16,6 +18,7 @@
 //   { type: "ready" }
 //   { type: "output", id, stream: "compiler" | "stdout" | "stderr", text }
 //   { type: "done", id, stage: "compile" | "run" | "format", code, ms, formatted? }
+//   { type: "checked", id, output }          the check's diagnostics, as text
 //   { type: "error", id?, text }
 
 import { Kernel, OutOfMemoryError, importedMemory } from "./browser-kernel/kernel.js";
@@ -134,22 +137,33 @@ function sink(id, stream) {
   };
 }
 
-/** Run the compiler with `args` on `files`, written into /work/<id>/src.
- *  The page sends one request at a time, so compiles never overlap. */
-async function compile(id, files, args, env = {}) {
+/** Compiles one at a time: a type check for completion can come while a
+ *  program compiles. */
+let compilerFree = Promise.resolve();
+
+/** Run the compiler with `args` on `files`, written into /work/<id>/src;
+ *  its output goes to `out`, by default the page's output panel. */
+async function compile(id, files, args, { env = {}, out = sink(id, "compiler") } = {}) {
   const dir = `/work/${id}`;
-  if (killed.has(id)) return { code: 137, dir };
-  for (const { name, content } of files) kernel.fs.writeFile(`${dir}/src/${name}`, content);
-  const proc = kernel.spawn(rustc, {
-    args: args(`${dir}/src`, dir),
-    env: { RUST_BACKTRACE: "0", HOME: "/tmp", TMPDIR: "/tmp", ...env },
-    stdout: sink(id, "compiler"),
-    stderr: sink(id, "compiler"),
-  });
-  running.set(id, proc);
-  const code = await proc.exited;
-  running.delete(id);
-  return { code, dir };
+  const before = compilerFree;
+  let free;
+  compilerFree = new Promise((resolve) => (free = resolve));
+  await before;
+  try {
+    if (killed.has(id)) return { code: 137, dir };
+    for (const { name, content } of files) kernel.fs.writeFile(`${dir}/src/${name}`, content);
+    const proc = kernel.spawn(rustc, {
+      args: args(`${dir}/src`, dir),
+      env: { RUST_BACKTRACE: "0", HOME: "/tmp", TMPDIR: "/tmp", ...env },
+      stdout: out,
+      stderr: out,
+    });
+    running.set(id, proc);
+    return { code: await proc.exited, dir };
+  } finally {
+    running.delete(id);
+    free();
+  }
 }
 
 async function run({ id, files, main }) {
@@ -196,12 +210,26 @@ async function format({ id, name, content }) {
   status("Formatting…");
   const t0 = performance.now();
   const { code, dir } = await compile(id, [{ name, content }],
-    (src) => ["rustfmt", "--edition=2024", `${src}/${name}`], { RUSTC_RUSTFMT: "1" });
+    (src) => ["rustfmt", "--edition=2024", `${src}/${name}`], { env: { RUSTC_RUSTFMT: "1" } });
   const bytes = kernel.fs.readFile(`${dir}/src/${name}`);
   kernel.fs.remove(dir);
   const formatted = code === 0 && bytes ? new TextDecoder().decode(bytes) : undefined;
   postMessage({ type: "done", id, stage: "format", code, ms: performance.now() - t0, formatted });
   finish(id);
+}
+
+async function check({ id, files, main }) {
+  await ready;
+  const dec = new TextDecoder();
+  let output = "";
+  const { dir } = await compile(id, files, (src, dir) => [
+    "rustc", `${src}/${main}`, "--edition=2024", "--crate-name=main", "--crate-type=bin",
+    `--target=${TARGET}`, `--sysroot=${SYSROOT}`, "--emit=metadata", "-o", `${dir}/out.rmeta`,
+    `--remap-path-prefix=${dir}/=`, "--color=never", "-Zthreads=1",
+  ], { out: (bytes) => { output += dec.decode(bytes, { stream: true }); } });
+  kernel.fs.remove(dir);
+  killed.delete(id);
+  postMessage({ type: "checked", id, output });
 }
 
 function finish(id) {
@@ -218,6 +246,7 @@ onmessage = ({ data: m }) => {
   const fail = (err) => postMessage({ type: "error", id: m.id, text: errorText(err) });
   if (m.type === "run") run(m).catch(fail);
   else if (m.type === "format") format(m).catch(fail);
+  else if (m.type === "check") check(m).catch(fail);
   else if (m.type === "stdin") running.get(m.id)?.writeStdin?.(new TextEncoder().encode(m.text));
   else if (m.type === "eof") running.get(m.id)?.closeStdin?.();
   else if (m.type === "kill") {

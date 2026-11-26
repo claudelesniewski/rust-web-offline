@@ -8,7 +8,7 @@ import { rustCompletions } from "../../vendor/completion.js";
 async function complete(doc, explicit = false) {
   const pos = doc.indexOf("|");
   const state = EditorState.create({ doc: doc.replace("|", "") });
-  const result = await rustCompletions(new CompletionContext(state, pos, explicit));
+  const result = await rustCompletions()(new CompletionContext(state, pos, explicit));
   return result && { from: result.from, labels: result.options.map((o) => o.label) };
 }
 
@@ -37,4 +37,14 @@ test("words from the file are offered too", async () => {
 test("nothing unasked-for after whitespace", async () => {
   assert.equal(await complete("let x = |"), null);
   assert.ok(await complete("let x = |", true));
+});
+
+test("after a dot, the type's methods when they are known", async () => {
+  const pos = "v.pu".length;
+  const state = EditorState.create({ doc: "v.pu" });
+  const typed = [{ label: "push", type: "method" }, { label: "spare_capacity_mut", type: "method" }];
+  const result = await rustCompletions(async (doc, from, to) => (doc === "v.pu" && from === 2 && to === 4 ? typed : null))(
+    new CompletionContext(state, pos, false));
+  // Common methods are ranked first.
+  assert.deepEqual(result.options, [{ ...typed[0], boost: 1 }, typed[1]]);
 });

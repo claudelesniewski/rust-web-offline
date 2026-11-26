@@ -45,6 +45,17 @@
 </header>
 <main id="main">
   <nav id="files">
+    <div class="project-bar">
+      <select id="project" title="Your projects: each has its own files"></select>
+      <details id="project-menu" class="dropdown">
+        <summary title="New, rename or delete a project">⋯</summary>
+        <div class="menu">
+          <button id="new-project">New project…</button>
+          <button id="rename-project">Rename project…</button>
+          <button id="delete-project">Delete project…</button>
+        </div>
+      </details>
+    </div>
     <ul id="file-list"></ul>
     <div class="file-actions">
       <button id="new-file">New</button>
@@ -52,7 +63,7 @@
       <button id="delete-file">Delete</button>
       <button id="import" title="Import .rs files from your computer">Import…</button>
       <button id="export" title="Download the open file">Export file</button>
-      <button id="export-all" title="Download all files as a .zip">Export all</button>
+      <button id="export-all" title="Download the project's files as a .zip">Export all</button>
       <input id="import-input" type="file" accept=".rs,text/plain" multiple hidden>
     </div>
   </nav>

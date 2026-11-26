@@ -125,8 +125,14 @@ service worker (sw.js): precache everything, serve from cache (docs from
   (SmolLM2-135M-Instruct, kimi-coder-135m) complete code no better (5 of 12
   test lines, as the base model) and answer Rust questions confidently
   wrongly, so offline chat would need a much larger model.
-- **Files.** IndexedDB (`web/store.js`), saved 400 ms after each edit and when
-  the page is hidden. File names are Rust module names ending in `.rs`.
+- **Projects and files.** IndexedDB (`web/store.js`): projects, and their
+  files keyed by project and path; saved 400 ms after each edit and when the
+  page is hidden. A path is Rust module names separated by `/`, ending in
+  `.rs` (`geometry/mod.rs`), so files are modules in folders as Cargo would
+  have them; Run writes them all into `src/` and compiles the open one as
+  the crate root. Version 1 of the database had one set of files: upgrading
+  copies them into a project named "My project", and keeps the old store as
+  it was, as a backup.
 
 ## Limits
 

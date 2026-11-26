@@ -7,9 +7,10 @@ library run as WebAssembly on your machine; nothing is sent to a server.
 
 - Editor with Rust highlighting and Tab completion (CodeMirror 6), **Run** (Ctrl-Enter),
   **Format** (rustfmt), and a terminal panel with stdin.
-- Several files, saved automatically in the browser (IndexedDB). Other files
-  are modules: `mod foo;` uses `foo.rs`. Import `.rs` files; export one file
-  or all of them as a `.zip`.
+- Projects, each with its own files, saved automatically in the browser
+  (IndexedDB). Other files are modules, in folders too: `mod foo;` uses
+  `foo.rs` or `foo/mod.rs`. Import `.rs` files; export one file or a whole
+  project as a `.zip`.
 - Standard library only (no crates.io).
 - Type-aware completion after `.` (on by default, in **Options**): the
   compiler finds the type, and the offline docs list its methods.

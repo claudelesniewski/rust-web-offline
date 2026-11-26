@@ -1,0 +1,21 @@
+# Runs the project's lightweight CI test set. Projects opt in by adding an
+# executable scripts/ci.sh (see "Continuous integration" in AGENTS.md).
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Run scripts/ci.sh
+        run: |
+          if [ -x scripts/ci.sh ]; then
+            scripts/ci.sh
+          else
+            echo "::warning::scripts/ci.sh not found; no CI tests configured yet."
+          fi

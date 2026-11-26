@@ -2,6 +2,7 @@
 // stdin, compile errors, files that persist, an update, then the same
 // offline, and the docs. Run scripts/build.sh first.
 import assert from "node:assert/strict";
+import { createHash } from "node:crypto";
 import { cpSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -11,6 +12,13 @@ import { serve, PREFIX } from "./serve.mjs";
 // A copy of the site, so that a new version can be deployed mid-test.
 const site = mkdtempSync(join(tmpdir(), "rust-offline-site-"));
 cpSync("build/site", site, { recursive: true });
+// AI suggestions use a tiny test model instead of the real one: it writes
+// stories, not Rust, but tests all the same.
+const model = readFileSync("build/cache/toolchain/test/stories260K.gguf");
+writeFileSync(join(site, "test-model.gguf"), model);
+const lmIndex = JSON.parse(readFileSync(join(site, "lm/index.json"), "utf8"));
+lmIndex.model = { url: "test-model.gguf", sha256: createHash("sha256").update(model).digest("hex"), size: model.length };
+writeFileSync(join(site, "lm/index.json"), JSON.stringify(lmIndex));
 const server = await serve(site);
 const requests = [];
 server.on("request", (req) => requests.push(req.url));
@@ -42,6 +50,20 @@ async function run() {
   await page.waitForFunction(() => /Exited with code|Compilation failed|Stopped/.test(
     document.querySelector("#output").innerText), null, { timeout: 120_000 });
   return output();
+}
+
+/** Wait for AI suggestions to be on, their model loaded. */
+async function aiReady(p) {
+  await p.locator('#ai-toggle[data-state="on"]').waitFor({ timeout: 60_000 });
+}
+
+/** Type at the end of the file; return the AI's suggestion. */
+async function suggestion(p) {
+  await p.locator(".cm-content").click();
+  await p.keyboard.press("ControlOrMeta+End");
+  await p.keyboard.type("    let x = ");
+  await p.locator(".cm-ghost").waitFor({ timeout: 30_000 });
+  return p.locator(".cm-ghost").innerText();
 }
 
 async function waitReady() {
@@ -124,6 +146,17 @@ try {
     assert.match(out, /^\[7\]$/m, out);
   });
 
+  await step("AI suggestions", async () => {
+    page.once("dialog", (d) => d.accept());
+    await page.locator("#ai").check();
+    await aiReady(page);
+    await setCode("main.rs", "fn main() {\n");
+    const ghost = await suggestion(page);
+    await page.keyboard.press("Tab");
+    await page.locator(".cm-ghost").waitFor({ state: "detached" });
+    assert.ok((await page.locator(".cm-content").innerText()).includes(ghost.trim()));
+  });
+
   await step("format with rustfmt", async () => {
     await setCode("geometry.rs", "pub fn double(x:i32)->i32{x*2}\n");
     await page.locator("#format:not([disabled])").click();
@@ -172,6 +205,9 @@ try {
       null, { timeout: 120_000 });
     assert.match(await offline.locator("#output").innerText(), /^42$/m);
     assert.match(await offline.locator("#offline").innerText(), /Ready for offline use/);
+    // AI suggestions stay on, their model loaded from the cache.
+    await aiReady(offline);
+    assert.ok(await suggestion(offline));
   });
 
   await step("the docs work offline, search included", async () => {

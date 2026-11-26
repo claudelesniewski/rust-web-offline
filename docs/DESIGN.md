@@ -86,6 +86,19 @@ service worker (sw.js): precache everything, serve from cache (docs from
   [fzstd](https://github.com/101arrowz/fzstd) when one of its pages is first
   asked for and keeping the last four in memory. Pages not included get a
   page linking to doc.rust-lang.org.
+- **Completion.** Without AI: keywords, snippets, common std names and
+  methods, and the file's words (`vendor/completion.js`), by context but
+  without types. With AI turned on: `web/lm.js` downloads
+  [wllama](https://github.com/ngxson/wllama) (llama.cpp in wasm, 11 MB, built
+  into the site but not precached) and SmolLM2-135M at 8 bits (145 MB, from
+  Hugging Face at a pinned revision, checked by SHA-256) into a cache of
+  their own, which the service worker keeps across versions. After a pause
+  in typing at the end of a line, `vendor/ghost.js` asks the model for the
+  rest of it: the prompt is a short preamble of idiomatic Rust (which steers
+  this small, general model away from Java and C++ habits) and the last
+  1,500 characters before the cursor. Measured in headless Chromium on 4
+  cores: 0.8 to 1.8 s per suggestion; Qwen2.5-Coder-0.5B, a much better code
+  model, is 430 MB at 4 bits, too much for small Chromebooks.
 - **Files.** IndexedDB (`web/store.js`), saved 400 ms after each edit and when
   the page is hidden. File names are Rust module names ending in `.rs`.
 

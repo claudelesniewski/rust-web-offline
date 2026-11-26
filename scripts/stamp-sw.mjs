@@ -12,6 +12,8 @@ const walk = (dir) => readdirSync(dir).flatMap((name) => {
 const files = walk(site)
   .map((p) => relative(site, p).split("\\").join("/"))
   .filter((p) => p !== "sw.js" && p !== "_headers")
+  // AI completion's runtime is cached only when it is turned on (web/lm.js).
+  .filter((p) => !/^lm\/.*\.[0-9a-f]{12}\./.test(p))
   .sort();
 const hash = createHash("sha256");
 for (const f of files) hash.update(f).update(readFileSync(join(site, f)));

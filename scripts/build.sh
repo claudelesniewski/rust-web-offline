@@ -4,6 +4,8 @@
 #   vendor/     entry points for npm packages, bundled by esbuild
 #   toolchain   downloaded by fetch-toolchain.sh
 #   docs        the Rust docs, packed by pack-docs.mjs
+#   lm          the optional AI completion: wllama (llama.cpp in wasm), and
+#               where to get the model; downloaded only when turned on
 # sw.js is then stamped with the list of files to precache for offline use.
 set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
@@ -36,6 +38,27 @@ for f in rustc.wasm.gz wild.wasm.gz sysroot.bundle; do
   json+="\"${f%%.*}\": [$parts], "
 done
 echo "${json%, }}" > "$SITE/toolchain/index.json"
+
+# AI completion: content-hashed, as they are cached apart from the rest.
+mkdir -p "$SITE/lm"
+npx esbuild vendor/lm/wllama.js --bundle --minify --format=esm --log-level=warning --outfile="$SITE/lm/wllama.js"
+cp node_modules/@wllama/wllama/esm/wasm/wllama.wasm "$SITE/lm/wllama.wasm"
+for f in wllama.js wllama.wasm; do
+  hash="$(sha256sum "$SITE/lm/$f" | cut -c1-12)"
+  mv "$SITE/lm/$f" "$SITE/lm/${f%.*}.$hash.${f##*.}"
+done
+# SmolLM2-135M (Apache-2.0), 8-bit, from llama.cpp's own conversions, pinned.
+cat > "$SITE/lm/index.json" <<JSON
+{
+  "js": "lm/$(cd "$SITE/lm" && ls wllama.*.js)",
+  "wasm": "lm/$(cd "$SITE/lm" && ls wllama.*.wasm)",
+  "model": {
+    "url": "https://huggingface.co/ggml-org/SmolLM2-135M-GGUF/resolve/1076b85d135017971845b19b8d07df1479155988/SmolLM2-135M-Q8_0.gguf",
+    "sha256": "813966e2b5e5aba261f6f198849a13b815db3c77bf4e389e72aa1e0f35a0d455",
+    "size": 144810560
+  }
+}
+JSON
 
 # Packing the docs takes a minute, so the result is cached until the docs
 # or the packer change.

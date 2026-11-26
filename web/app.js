@@ -5,6 +5,7 @@ import { Terminal } from "./terminal.js";
 import { EXAMPLES } from "./examples.js";
 import { zip } from "./zip.js";
 import * as store from "./store.js";
+import * as lm from "./lm.js";
 
 const $ = (id) => document.getElementById(id);
 const setStatus = (text) => { $("status").textContent = text; };
@@ -339,6 +340,47 @@ function stop() {
   compiler.postMessage({ type: "kill", id: current });
 }
 
+// ---- AI suggestions --------------------------------------------------------
+
+let model = null;
+
+/** Turn AI suggestions on or off; the toggle's data-state follows: off,
+ *  loading, on or failed. */
+async function setAI(on, { ask = true } = {}) {
+  const state = (s, text = "") => {
+    $("ai-toggle").dataset.state = s;
+    $("ai-status").textContent = text;
+  };
+  $("ai").checked = on;
+  store.setSetting("ai", on);
+  if (!on) {
+    editor.setSuggest(null);
+    model?.unload();
+    model = null;
+    state("off");
+    return;
+  }
+  if (ask && !(await lm.isDownloaded()) && !confirm(
+    "AI suggestions download a 145 MB language model (SmolLM2-135M) that then runs on this device, offline. " +
+    "It is small, so its suggestions are often wrong. Download it?")) {
+    return setAI(false);
+  }
+  try {
+    state("loading", "loading…");
+    model = await lm.loadModel((done, total) => state("loading", `${mb(done)} / ${mb(total)} MB`));
+    if (!$("ai").checked) return model.unload(); // turned off meanwhile
+    editor.setSuggest(model.complete);
+    state("on");
+  } catch (e) {
+    $("ai").checked = false;
+    store.setSetting("ai", false);
+    state("failed", "failed");
+    $("ai-toggle").title = `AI suggestions failed to load: ${e.message}`;
+  }
+}
+
+$("ai").onchange = (e) => setAI(e.target.checked);
+
 // ---- Start -----------------------------------------------------------------
 
 $("run").onclick = run;
@@ -348,5 +390,6 @@ setupFileActions();
 loadFiles().catch((e) => setStatus(`Could not load your files: ${e}`));
 setupServiceWorker().catch((e) => showOffline("", `Offline: unavailable (${e.message})`));
 requestPersistence();
+store.getSetting("ai").then((on) => { if (on) setAI(true, { ask: false }); });
 if (crossOriginIsolated) startCompiler();
 else setStatus("Setting up…");

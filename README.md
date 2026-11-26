@@ -5,7 +5,7 @@ programs entirely in the browser. Open it once online; after that it works
 with no network at all. The compiler (`rustc`), the linker and the standard
 library run as WebAssembly on your machine; nothing is sent to a server.
 
-- Editor with Rust highlighting (CodeMirror 6), **Run** (Ctrl-Enter),
+- Editor with Rust highlighting and Tab completion (CodeMirror 6), **Run** (Ctrl-Enter),
   **Format** (rustfmt), and a terminal panel with stdin.
 - Several files, saved automatically in the browser (IndexedDB). Other files
   are modules: `mod foo;` uses `foo.rs`. Import `.rs` files; export one file

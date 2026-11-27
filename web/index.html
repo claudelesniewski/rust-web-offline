@@ -26,7 +26,7 @@
   <strong class="title">Rust Offline</strong>
   <button id="run" class="primary" disabled title="Compile and run (Ctrl-Enter)">▶ Run</button>
   <button id="stop" disabled title="Stop the running program">■ Stop</button>
-  <button id="format" disabled title="Format with rustfmt (Ctrl-Shift-F)">Format</button>
+  <button id="format" disabled title="Format with rustfmt (Shift-Alt-F)">Format</button>
   <select id="examples" title="Open an example as a new file">
     <option value="">Examples…</option>
   </select>
@@ -105,6 +105,18 @@
     <button id="sync-push" class="primary">Push</button>
     <button id="sync-close">Close</button>
   </div>
+</dialog>
+<dialog id="find-dialog">
+  <h3>Find in project</h3>
+  <label>Find <input id="find-query" spellcheck="false" autocomplete="off"></label>
+  <label>Replace with <input id="find-replacement" spellcheck="false" autocomplete="off"></label>
+  <div class="buttons">
+    <label class="check"><input type="checkbox" id="find-case"> Match case</label>
+    <button id="find-replace-all">Replace all</button>
+    <button id="find-close">Close</button>
+  </div>
+  <p id="find-count" role="status"></p>
+  <ul id="find-results"></ul>
 </dialog>
 </body>
 </html>

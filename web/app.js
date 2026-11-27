@@ -12,6 +12,7 @@ import { createTypeCompletion } from "./types.js";
 import { createSuggester } from "./suggest.js";
 import { createGitHub } from "./github.js";
 import * as sync from "./sync.js";
+import { find, replaceAll } from "./find.js";
 
 const $ = (id) => document.getElementById(id);
 const setStatus = (text) => { $("status").textContent = text; };
@@ -105,7 +106,7 @@ const editor = createEditor($("editor"), {
   keys: [
     { key: "Mod-Enter", run: () => (run(), true) },
     { key: "Mod-s", run: () => (flushSaves(), true) },
-    { key: "Shift-Mod-f", run: () => (format(), true) },
+    { key: "Shift-Alt-f", run: () => (format(), true) },
   ],
   onSave: () => flushSaves(),
   onDefinition(word, pos) {
@@ -459,6 +460,57 @@ function setupFileActions() {
   document.addEventListener("visibilitychange", () => { if (document.hidden) flushSaves(); });
 }
 
+// ---- Find in project -------------------------------------------------------
+
+const findOptions = () => ({ caseSensitive: $("find-case").checked });
+
+/** List the places the query is in, as file:line: text; a click goes there. */
+function renderFind() {
+  const matches = find(files, $("find-query").value, findOptions());
+  const list = $("find-results");
+  list.textContent = "";
+  for (const { file, line, col, text, length } of matches) {
+    const li = document.createElement("li");
+    const mark = document.createElement("mark");
+    mark.textContent = text.slice(col - 1, col - 1 + length);
+    li.append(`${file}:${line}: ${text.slice(0, col - 1)}`, mark, text.slice(col - 1 + length));
+    li.onclick = () => {
+      $("find-dialog").close();
+      if (file !== active) openFile(file);
+      editor.goto(line, col);
+    };
+    list.append(li);
+  }
+  $("find-count").textContent = $("find-query").value ? `${matches.length} found` : "";
+}
+
+function setupFind() {
+  document.addEventListener("keydown", (e) => {
+    if ((e.ctrlKey || e.metaKey) && e.shiftKey && e.key.toLowerCase() === "f") {
+      e.preventDefault();
+      e.stopPropagation();
+      if (!$("find-dialog").open) $("find-dialog").showModal();
+      $("find-query").select();
+      renderFind();
+    }
+  }, true);
+  $("find-query").oninput = renderFind;
+  $("find-case").onchange = renderFind;
+  $("find-close").onclick = () => $("find-dialog").close();
+  $("find-replace-all").onclick = () => {
+    const query = $("find-query").value;
+    const count = find(files, query, findOptions()).length;
+    if (!count || !confirm(`Replace ${count} ${count === 1 ? "match" : "matches"} of "${query}" in all files?`)) return;
+    for (const [name, content] of replaceAll(files, query, $("find-replacement").value, findOptions())) {
+      files.set(name, content);
+      if (name === active) editor.replace(content);
+      else editor.forget(name);
+      save(name);
+    }
+    renderFind();
+  };
+}
+
 // ---- Compiling and running -------------------------------------------------
 
 const terminal = new Terminal($("output"), $("stdin"), {
@@ -661,6 +713,7 @@ $("format").onclick = format;
 setupFileActions();
 setupProjectActions();
 setupSync();
+setupFind();
 loadProjects().catch((e) => setStatus(`Could not load your files: ${e}`));
 setupServiceWorker().catch((e) => showOffline("", `Offline: unavailable (${e.message})`));
 requestPersistence();

@@ -100,6 +100,7 @@ const editor = createEditor($("editor"), {
     { key: "Mod-s", run: () => (flushSaves(), true) },
     { key: "Shift-Mod-f", run: () => (format(), true) },
   ],
+  onSave: () => flushSaves(),
 });
 
 function scheduleSave(name) {
@@ -566,6 +567,14 @@ function setTypes(on) {
 
 $("types").onchange = (e) => setTypes(e.target.checked);
 
+function setVim(on) {
+  $("vim").checked = on;
+  store.setSetting("vim", on);
+  editor.setVim(on);
+}
+
+$("vim").onchange = (e) => setVim(e.target.checked);
+
 // ---- AI suggestions --------------------------------------------------------
 
 let model = null;
@@ -627,5 +636,6 @@ setupServiceWorker().catch((e) => showOffline("", `Offline: unavailable (${e.mes
 requestPersistence();
 store.getSetting("ai").then((on) => { if (on) setAI(true, { ask: false }); });
 store.getSetting("types").then((on) => setTypes(on ?? true));
+store.getSetting("vim").then((on) => { if (on) setVim(true); });
 if (crossOriginIsolated) startCompiler();
 else setStatus("Setting up…");

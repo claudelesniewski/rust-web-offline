@@ -18,6 +18,7 @@ library run as WebAssembly on your machine; nothing is sent to a server.
   read and write** (github.com → Settings → Developer settings → Personal
   access tokens → Fine-grained tokens), kept in the browser only.
 - Standard library only (no crates.io).
+- Optional Vim key bindings (in **Options**), with `:w` to save.
 - Type-aware completion after `.` (on by default, in **Options**): the
   compiler finds the type, and the offline docs list its methods.
 - Optional **AI** suggestions (in **Options**): a small language model (SmolLM2-135M, a 145 MB

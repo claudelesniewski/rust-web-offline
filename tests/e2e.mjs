@@ -490,7 +490,7 @@ try {
   await step("Python packages are added in the Toolchains dialog", async () => {
     await page.locator("#options summary").click();
     await page.locator("#toolchains-open").click();
-    await page.locator("#toolchains-dialog .pack h4", { hasText: "installed" }).waitFor();
+    await page.locator("#toolchains-dialog .pack h4", { hasText: "Python 3.14 · installed" }).waitFor();
     await page.locator("#toolchains-dialog .add input").fill("annotated_types");
     await page.locator("#toolchains-dialog .add button").click();
     await page.locator("#toolchains-dialog .packages span", { hasText: "annotated-types" }).waitFor();
@@ -508,9 +508,39 @@ try {
     assert.match(await output(), /ModuleNotFoundError[^]*Exited with code 1/);
   });
 
-  await step("a new version installs without downloading the toolchain or docs again", async () => {
+  await step("Rust is a toolchain too: removed, then installed again when needed", async () => {
+    await page.locator("#options summary").click();
+    await page.locator("#toolchains-open").click();
+    const rust = page.locator("#toolchains-dialog .pack", { hasText: "Rust (nightly)" });
+    await rust.locator("button", { hasText: "Remove" }).click();
+    await rust.locator("button", { hasText: "Install" }).waitFor();
+    await page.locator("#toolchains-close").click();
+    assert.equal(await page.evaluate(async () => (await (await caches.open("packs")).keys())
+      .filter((r) => r.url.includes("/toolchain/")).length), 0);
+    await page.locator('#file-list li[data-name="main.rs"]').click();
+    page.once("dialog", (d) => d.accept()); // "Rust (nightly) isn't installed. Download it?"
+    await page.locator("#run").click();
+    await page.locator("#run[disabled]").waitFor();
+    await waitReady();
+    assert.match(await run(), /Exited with code 0/);
+  });
+
+  await step("a new version installs, updating Rust's changed files only", async () => {
     const sw = join(site, "sw.js");
     writeFileSync(sw, readFileSync(sw, "utf8").replace(/^const VERSION = "(.*)";$/m, 'const VERSION = "$1-next";'));
+    // A changed file of the Rust pack, as a new toolchain would have.
+    const index = join(site, "toolchain/index.json");
+    writeFileSync(index, `${readFileSync(index, "utf8").trim()}\n\n`);
+    const pinned = JSON.parse(readFileSync(join(site, "packs.json"), "utf8"));
+    const file = pinned.rust.files.find((f) => f.name === "toolchain/index.json");
+    file.sha256 = createHash("sha256").update(readFileSync(index)).digest("hex");
+    file.size = readFileSync(index).length;
+    writeFileSync(join(site, "packs.json"), JSON.stringify(pinned));
+    // And one of an earlier version's, which goes.
+    const stale = () => page.evaluate(async () => (await caches.open("packs")).match("toolchain/rustc.000000000000.wasm.gz.0"));
+    await page.evaluate(async () => (await caches.open("packs")).put("toolchain/rustc.000000000000.wasm.gz.0",
+      new Response("old", { headers: { "X-Pack": "rust", "X-SHA256": "0" } })));
+    assert.ok(await stale());
     requests.length = 0;
     // A slow page (as on a small Chromebook): the new version takes over
     // while the app is still loading, and must still be offered.
@@ -521,8 +551,10 @@ try {
     await cdp.send("Emulation.setCPUThrottlingRate", { rate: 1 });
     await page.locator("#update button", { hasText: "Update ready" }).click();
     await waitReady();
-    // Content-hashed files: the toolchain and the docs' chunks.
+    // Not the content-hashed files: the toolchain and the docs' chunks.
     assert.deepEqual(requests.filter((r) => /\/toolchain\/.*\.[0-9a-f]{12}\.|\/docs\/\d+\./.test(r)), []);
+    assert.ok(requests.some((r) => r.endsWith("/toolchain/index.json")));
+    assert.equal(await stale(), undefined);
     await page.locator("#offline.ready").waitFor();
   });
 

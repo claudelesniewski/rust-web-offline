@@ -33,8 +33,8 @@ Free GitHub Pages only serves public repositories.
 
 ## Install and check offline use
 
-1. Open the site. The first visit downloads about 74 MB (compiler and docs); the top-right shows
-   "Saving for offline: … MB" and then **✓ Ready for offline use**. (On GitHub
+1. Open the site. The first visit downloads about 76 MB (the site, then Rust's compiler
+   and docs); the top-right shows "Saving … for offline: … MB" and then **✓ Ready for offline use**. (On GitHub
    Pages the page reloads itself once while setting up; that's expected.)
 2. Install it: click the install icon at the right end of the address bar,
    or Chrome menu (⋮) → **Cast, save, and share** → **Install page as app…**.

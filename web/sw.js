@@ -1,5 +1,6 @@
-// Service worker: precaches the whole site (app, toolchain and docs) so it
-// works offline, serves the docs' pages out of their compressed chunks, and
+// Service worker: precaches the site so it works offline, serves the
+// toolchains the page installs (web/packs.js) from their own cache, serves
+// the docs' pages out of their compressed chunks, and
 // adds the cross-origin isolation headers (COOP/COEP) that SharedArrayBuffer
 // needs, since GitHub Pages cannot send them itself.
 //
@@ -11,8 +12,6 @@ import { decompress } from "./zstd.js";
 const VERSION = "dev";
 const PRECACHE = [];
 
-// Content-hashed files, which an older version's cache can safely provide.
-const IMMUTABLE = /^(toolchain\/[^/]+\.[0-9a-f]{12}\.|docs\/\d+\.[0-9a-f]{12}\.zst$)/;
 const SCOPE = new URL(self.registration.scope).pathname;
 /** Caches kept across versions: AI completion's runtime and model
  *  (web/lm.js), and optional toolchains (web/packs.js). */
@@ -45,12 +44,6 @@ self.addEventListener("install", (event) => {
     // One file at a time, so a failed install resumes where it stopped.
     for (const [path, size] of PRECACHE) {
       if (await cache.match(path)) continue;
-      const old = IMMUTABLE.test(path) ? await caches.match(path) : undefined;
-      if (old) {
-        await cache.put(path, old);
-        done += size;
-        continue;
-      }
       const res = await fetch(path, { cache: "reload" });
       if (!res.ok) throw new Error(`${path}: ${res.status}`);
       // Count bytes as they arrive, for the progress bar.
@@ -96,30 +89,34 @@ function isolated(res) {
   return new Response(res.body, { status: res.status, statusText: res.statusText, headers });
 }
 
-/** The cached response for `req`, or the network's. */
-async function cachedOrFetch(req) {
-  return (await (await caches.open(VERSION)).match(req, { ignoreSearch: true })) ?? fetch(req);
+/** The cached response for `req`: this version's, or a kept cache's. */
+async function cached(req) {
+  for (const name of [VERSION, ...KEPT]) {
+    const res = await (await caches.open(name)).match(req, { ignoreSearch: true });
+    if (res) return res;
+  }
 }
 
 const serveDoc = createDocs({
-  read: async (name) => new Uint8Array(await (await cachedOrFetch(`docs/${name}`)).arrayBuffer()),
+  read: async (name) => {
+    const res = (await cached(`docs/${name}`)) ?? (await fetch(`docs/${name}`));
+    return new Uint8Array(await res.arrayBuffer());
+  },
   decompress,
 });
 
 self.addEventListener("fetch", (event) => {
   const req = event.request;
   const url = new URL(req.url);
-  if (req.method !== "GET" || url.origin !== self.location.origin) return;
+  // Not from a cache, as web/packs.js asks for downloads.
+  if (req.method !== "GET" || url.origin !== self.location.origin || req.cache === "no-store") return;
   const path = url.pathname.slice(SCOPE.length);
   event.respondWith((async () => {
     // Pages of the docs, but not the packed chunks they come from.
     if (path.startsWith("docs/") && !path.endsWith(".zst")) return isolated(await serveDoc(path.slice(5)));
-    const cache = await caches.open(VERSION);
     // Any other page in scope is the app: offline, the cached one.
-    const res = (await cache.match(req, { ignoreSearch: true }))
-      ?? (await (await caches.open(KEPT[0])).match(req, { ignoreSearch: true }))
-      ?? (await (await caches.open(KEPT[1])).match(req, { ignoreSearch: true }))
-      ?? (req.mode === "navigate" ? await cache.match("./") : undefined)
+    const res = (await cached(req))
+      ?? (req.mode === "navigate" ? await (await caches.open(VERSION)).match("./") : undefined)
       ?? (await fetch(req));
     return isolated(res);
   })());

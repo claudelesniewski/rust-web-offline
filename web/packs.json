@@ -3,6 +3,7 @@
     "title": "Python 3.14",
     "about": "CPython 3.14 compiled to WebAssembly by Pyodide 314.0.8 (MPL-2.0), with its standard library. Packages such as numpy and pandas can be added.",
     "base": "https://cdn.jsdelivr.net/pyodide/v314.0.8/full/",
+    "dir": "packs/python/",
     "files": [
       {
         "name": "pyodide.mjs",

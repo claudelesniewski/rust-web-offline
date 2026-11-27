@@ -1,0 +1,35 @@
+# Publishes the pinned toolchain, docs and test model (see
+# scripts/fetch-toolchain.sh) as a release of this repository, named after
+# a hash of the pins, so that builds don't depend on upstream keeping them.
+# Runs when the pins change on main, or by hand (Actions > Mirror the
+# toolchain > Run workflow); does nothing if that release exists already.
+name: Mirror the toolchain
+
+on:
+  push:
+    branches: [main]
+    paths: [scripts/fetch-toolchain.sh, .github/workflows/mirror.yml]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  mirror:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Fetch the pinned files and publish them, unless published already
+        env:
+          GH_TOKEN: ${{ github.token }}
+          MIRROR_REPO: ${{ github.repository }}
+        run: |
+          STAGE=build/mirror scripts/fetch-toolchain.sh
+          tag="$(cat build/mirror/TAG)"
+          if gh release view "$tag" > /dev/null 2>&1; then
+            echo "$tag is published already."
+            exit 0
+          fi
+          gh release create "$tag" build/mirror/assets/* --latest=false \
+            --title "Toolchain mirror ($tag)" \
+            --notes "The prebuilt files scripts/fetch-toolchain.sh downloads, checked against its pinned SHA-256s: rustc, the Wild linker, the standard library and browser-kernel from rust-playground-inbrowser (Apache-2.0; licences in dist_licenses.html and browser-kernel_LICENSE), the rust-docs component (MIT/Apache-2.0), and a test model (MIT). Not a release of the app."

@@ -349,6 +349,26 @@ try {
     assert.match(await run(), /^42$/m);
   });
 
+  await step("drag the terminal taller; it stays so after a reload; double-click resets it", async () => {
+    const height = async () => (await page.locator("#terminal").boundingBox()).height;
+    const before = await height();
+    const handle = await page.locator("#terminal-handle").boundingBox();
+    const x = handle.x + handle.width / 2, y = handle.y + handle.height / 2;
+    await page.mouse.move(x, y);
+    await page.mouse.down();
+    await page.mouse.move(x, y - 100, { steps: 5 });
+    await page.mouse.up();
+    const taller = await height();
+    assert.ok(Math.abs(taller - before - 100) < 5, `${before} -> ${taller}`);
+    const saved = await page.evaluate(() => import("./store.js").then((s) => s.getSetting("layout")));
+    assert.ok(saved.editor > 0 && saved.editor < 0.6, JSON.stringify(saved));
+    await page.reload();
+    await waitReady();
+    assert.ok(Math.abs((await height()) - taller) < 2);
+    await page.locator("#terminal-handle").dblclick();
+    assert.ok(Math.abs((await height()) - before) < 2);
+  });
+
   await step("export all as a zip", async () => {
     const [download] = await Promise.all([page.waitForEvent("download"), page.locator("#export-all").click()]);
     assert.match(download.suggestedFilename(), /^My-project-\d{4}-\d{2}-\d{2}\.zip$/);

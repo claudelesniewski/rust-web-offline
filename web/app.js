@@ -47,11 +47,11 @@ async function setupServiceWorker() {
     if (!crossOriginIsolated) reloadForIsolation();
     else if (swTakeover.had) {
       // A new version took over; the page still runs the old one.
-      $("status").innerHTML = "";
+      // (Not in #status, which the compiler's messages overwrite.)
       const b = document.createElement("button");
       b.textContent = "Update ready: reload";
       b.onclick = () => location.reload();
-      $("status").append(b);
+      $("update").replaceChildren(b);
     }
   };
   if (swTakeover.happened) takeover();

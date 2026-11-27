@@ -363,9 +363,9 @@ try {
     const cdp = await context.newCDPSession(page);
     await cdp.send("Emulation.setCPUThrottlingRate", { rate: 20 });
     await page.reload();
-    await page.locator("#status button", { hasText: "Update ready" }).waitFor({ timeout: 60_000 });
+    await page.locator("#update button", { hasText: "Update ready" }).waitFor({ timeout: 60_000 });
     await cdp.send("Emulation.setCPUThrottlingRate", { rate: 1 });
-    await page.locator("#status button", { hasText: "Update ready" }).click();
+    await page.locator("#update button", { hasText: "Update ready" }).click();
     await waitReady();
     // Content-hashed files: the toolchain and the docs' chunks.
     assert.deepEqual(requests.filter((r) => /\/toolchain\/.*\.[0-9a-f]{12}\.|\/docs\/\d+\./.test(r)), []);

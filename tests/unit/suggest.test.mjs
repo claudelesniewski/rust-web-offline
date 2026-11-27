@@ -59,3 +59,15 @@ test("comments: none alone or at the end in code, but all of it in a comment", a
   const comment = "fn main() {\n    // Add the ";
   assert.equal(await suggester("numbers // up").suggest(comment, comment.length), "numbers // up");
 });
+
+test("the model is told the file and given the project's other files", async () => {
+  let seen;
+  const suggest = createSuggester({
+    complete: async (prefix, signal, opts) => { seen = opts; return "1;"; },
+    main: () => "app.rs",
+    others: () => [{ name: "geometry.rs", content: "pub fn area() {}" }],
+  });
+  assert.equal(await suggest("let x = ", 8), "1;");
+  assert.equal(seen.file, "app.rs");
+  assert.deepEqual(seen.others, [{ name: "geometry.rs", content: "pub fn area() {}" }]);
+});

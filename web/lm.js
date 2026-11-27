@@ -5,39 +5,15 @@
 // versions, so it works offline from then on.
 
 const CACHE = "lm"; // the name sw.js keeps
-/** Shown to the model before the code, so it continues in idiomatic Rust
- *  rather than in some other language. */
-const PREAMBLE = `// Idiomatic Rust (edition 2024), standard library only.
-use std::collections::HashMap;
-use std::io::{self, BufRead};
-
-#[derive(Debug, Clone, PartialEq)]
-struct Item {
-    name: String,
-    price: f64,
-}
-
-impl Item {
-    fn new(name: &str, price: f64) -> Self {
-        Item { name: name.to_string(), price }
-    }
-}
-
-fn read_numbers() -> Vec<i64> {
-    let mut line = String::new();
-    io::stdin().read_line(&mut line).expect("read failed");
-    line.split_whitespace().filter_map(|s| s.parse().ok()).collect()
-}
-
-fn tally(words: &[&str]) -> HashMap<String, usize> {
-    let mut counts = HashMap::new();
-    for w in words {
-        *counts.entry(w.to_string()).or_insert(0) += 1;
-    }
-    counts
-}
-
-`;
+/** The prompt is laid out as files of a repository, in the format of the
+ *  model's code training data (StarCoder2's), so it continues them as code
+ *  of that kind: the project's other files, then the open file up to the
+ *  cursor. Measured on 26 lines of Rust, 8 of them unlike any example the
+ *  model was shown before: as good as a preamble of idiomatic Rust (9 or 10
+ *  right), better on those 8 (3 against 1), and 30% faster. */
+const REPO = "<repo_name>rust-examples";
+/** How much of the other files the model sees, in characters. */
+const OTHERS = 2000;
 /** How much of the code before the cursor the model sees, in characters. */
 const CONTEXT = 1500;
 
@@ -97,21 +73,28 @@ export async function loadModel(onProgress) {
   const { Wllama } = await import(new URL(index.js, location.href).href);
   const wllama = new Wllama({ default: new URL(index.wasm, location.href).href }, { suppressNativeLog: true });
   // On the CPU: for a model this small, as fast, and more predictable.
-  await wllama.loadModel([model], { n_ctx: 1024, n_gpu_layers: 0 });
-  // Read the preamble once now: later prompts start with it, and reuse it.
-  await wllama.createCompletion({ prompt: PREAMBLE, max_tokens: 1 });
+  await wllama.loadModel([model], { n_ctx: 2048, n_gpu_layers: 0 });
 
   return {
-    /** The likeliest continuation of the line `prefix` ends in, or "";
-     *  `grammar` (GBNF) constrains it. */
-    async complete(prefix, signal, { grammar } = {}) {
+    /** The likeliest continuation of the line `prefix` (of file `file`)
+     *  ends in, or ""; `grammar` (GBNF) constrains it. `others` are the
+     *  project's other files ([{ name, content }]), for context. */
+    async complete(prefix, signal, { grammar, file = "main.rs", others = [] } = {}) {
       // A space at the end tokenizes badly (words' tokens start with one):
       // let the model write it instead. Measured on 18 lines: dropping all
       // the indentation instead made the model start new items (4 right,
       // against 7); keeping it all, 6.
       const typed = prefix.endsWith(" ") ? " " : "";
+      let prompt = REPO;
+      let room = OTHERS;
+      for (const other of others) {
+        if (room <= 0) break;
+        prompt += `<file_sep>src/${other.name}\n${other.content.slice(0, room)}`;
+        room -= other.content.length;
+      }
+      prompt += `<file_sep>src/${file}\n${prefix.slice(-CONTEXT, prefix.length - typed.length)}`;
       const r = await wllama.createCompletion({
-        prompt: PREAMBLE + prefix.slice(-CONTEXT, prefix.length - typed.length),
+        prompt,
         max_tokens: 32, temperature: 0, grammar, stop: ["\n"], abortSignal: signal,
       });
       const text = (r.choices[0]?.text ?? "").replace(/\n$/, "");

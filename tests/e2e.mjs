@@ -147,6 +147,41 @@ try {
     await setCode("main.rs", 'mod geometry;\nfn main() { println!("{}", geometry::double(21)); }\n');
   });
 
+  await step("find and replace in all files", async () => {
+    await page.locator('#file-list li[data-name="main.rs"]').click();
+    await page.keyboard.press("ControlOrMeta+Shift+f");
+    await page.locator("#find-query").fill("DOUBLE");
+    assert.deepEqual(await page.locator("#find-results li").allInnerTexts(), [
+      "geometry.rs:1: pub fn double(x: i32) -> i32 { x * 2 }",
+      'main.rs:2: fn main() { println!("{}", geometry::double(21)); }',
+    ]);
+    assert.equal(await page.locator("#find-results mark").first().innerText(), "double");
+    await page.locator("#find-case").check();
+    assert.equal(await page.locator("#find-results li").count(), 0);
+    await page.locator("#find-case").uncheck();
+    await page.locator("#find-results li", { hasText: /^geometry\.rs:1:/ }).click();
+    await page.locator('#file-list li.active[data-name="geometry.rs"]').waitFor();
+    assert.equal(await page.locator("#find-dialog").isVisible(), false);
+    // Replace all, in the open file and another, then back.
+    const replace = async (from, to) => {
+      await page.keyboard.press("ControlOrMeta+Shift+f");
+      await page.locator("#find-query").fill(from);
+      await page.locator("#find-replacement").fill(to);
+      const asked = new Promise((resolve) => page.once("dialog", (d) => { resolve(d.message()); d.accept(); }));
+      await page.locator("#find-replace-all").click();
+      assert.match(await asked, /^Replace 2 matches/);
+      await page.locator("#find-count", { hasText: "0 found" }).waitFor();
+      await page.locator("#find-close").click();
+    };
+    await replace("double", "twice");
+    assert.match(await page.locator(".cm-content").innerText(), /pub fn twice\(/);
+    await page.locator('#file-list li[data-name="main.rs"]').click();
+    assert.match(await page.locator(".cm-content").innerText(), /geometry::twice\(21\)/);
+    assert.match(await run(), /^42$/m);
+    await replace("twice", "double");
+    assert.match(await page.locator(".cm-content").innerText(), /geometry::double\(21\)/);
+  });
+
   await step("tab completion", async () => {
     await setCode("main.rs", "fn main() {\n    let mut v = Vec::new();\n    \n}\n");
     await page.keyboard.press("ControlOrMeta+End");

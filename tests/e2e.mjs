@@ -105,6 +105,13 @@ try {
     assert.equal(await page.locator(".cm-activeLine").innerText(), '    let x: i32 = "nope";');
   });
 
+  await step("compile errors are underlined in the editor until it is edited", async () => {
+    assert.equal(await page.locator(".cm-line .cm-lintRange-error").innerText(), '"nope"');
+    assert.equal(await page.locator(".cm-gutter-lint .cm-lint-marker-error").count(), 1);
+    await page.keyboard.type(" ");
+    await page.locator(".cm-lintRange-error").waitFor({ state: "detached" });
+  });
+
   await step("stdin", async () => {
     await setCode("main.rs", [
       "fn main() {",

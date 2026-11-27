@@ -14,8 +14,9 @@ const PRECACHE = [];
 // Content-hashed files, which an older version's cache can safely provide.
 const IMMUTABLE = /^(toolchain\/[^/]+\.[0-9a-f]{12}\.|docs\/\d+\.[0-9a-f]{12}\.zst$)/;
 const SCOPE = new URL(self.registration.scope).pathname;
-/** Where web/lm.js keeps AI completion's runtime and model, across versions. */
-const LM_CACHE = "lm";
+/** Caches kept across versions: AI completion's runtime and model
+ *  (web/lm.js), and optional toolchains (web/packs.js). */
+const KEPT = ["lm", "packs"];
 const TOTAL = PRECACHE.reduce((n, [, size]) => n + size, 0);
 
 async function broadcast(msg) {
@@ -70,7 +71,7 @@ self.addEventListener("install", (event) => {
 
 self.addEventListener("activate", (event) => {
   event.waitUntil((async () => {
-    for (const name of await caches.keys()) if (name !== VERSION && name !== LM_CACHE) await caches.delete(name);
+    for (const name of await caches.keys()) if (name !== VERSION && !KEPT.includes(name)) await caches.delete(name);
     await self.clients.claim();
     broadcast({ type: "offline-ready", version: VERSION });
   })());
@@ -116,7 +117,8 @@ self.addEventListener("fetch", (event) => {
     const cache = await caches.open(VERSION);
     // Any other page in scope is the app: offline, the cached one.
     const res = (await cache.match(req, { ignoreSearch: true }))
-      ?? (await (await caches.open(LM_CACHE)).match(req, { ignoreSearch: true }))
+      ?? (await (await caches.open(KEPT[0])).match(req, { ignoreSearch: true }))
+      ?? (await (await caches.open(KEPT[1])).match(req, { ignoreSearch: true }))
       ?? (req.mode === "navigate" ? await cache.match("./") : undefined)
       ?? (await fetch(req));
     return isolated(res);

@@ -20,6 +20,11 @@ writeFileSync(join(site, "test-model.gguf"), model);
 const lmIndex = JSON.parse(readFileSync(join(site, "lm/index.json"), "utf8"));
 lmIndex.model = { url: "test-model.gguf", sha256: createHash("sha256").update(model).digest("hex"), size: model.length };
 writeFileSync(join(site, "lm/index.json"), JSON.stringify(lmIndex));
+// The Python pack comes from the files fetch-toolchain.sh pinned, not the CDN.
+cpSync("build/cache/toolchain/test/pyodide", join(site, "test-pyodide"), { recursive: true });
+const packsJson = JSON.parse(readFileSync(join(site, "packs.json"), "utf8"));
+packsJson.python.base = "test-pyodide/";
+writeFileSync(join(site, "packs.json"), JSON.stringify(packsJson));
 const server = await serve(site);
 const requests = [];
 server.on("request", (req) => requests.push(req.url));
@@ -35,6 +40,13 @@ async function step(name, fn) {
   const t0 = Date.now();
   await fn();
   console.log(`ok - ${name} (${((Date.now() - t0) / 1000).toFixed(1)} s)`);
+}
+
+/** Run Python file `name`, the active one, to its end. */
+async function runPython(name) {
+  await page.locator("#run:not([disabled])").click();
+  await page.waitForFunction((n) => document.querySelector("#output").innerText.startsWith(`Running ${n}`)
+    && /Exited with code/.test(document.querySelector("#output").innerText), name, { timeout: 60_000 });
 }
 
 /** Open `name` and replace its text with `code`. */
@@ -462,6 +474,40 @@ try {
     await page.locator('#file-list li[data-name="shapes.rs"]').waitFor();
   });
 
+  await step("Python: installed when first needed, with input()", async () => {
+    await page.locator("#examples").selectOption("hello.py");
+    await page.locator('#file-list li.active[data-name="hello.py"]').waitFor();
+    page.once("dialog", (d) => d.accept()); // "Python isn't installed yet. Download it?"
+    await page.locator("#run:not([disabled])").click();
+    await page.locator("#stdin:not([disabled])").waitFor({ timeout: 120_000 });
+    await page.locator("#output", { hasText: "What's your name?" }).waitFor({ timeout: 120_000 });
+    await page.locator("#stdin").fill("Ada");
+    await page.locator("#stdin").press("Enter");
+    await page.locator("#output", { hasText: "Exited with code 0" }).waitFor({ timeout: 60_000 });
+    assert.match(await output(), /Hello, Ada! Squares: \[1, 4, 9, 16, 25\], sum 55/);
+  });
+
+  await step("Python packages are added in the Toolchains dialog", async () => {
+    await page.locator("#options summary").click();
+    await page.locator("#toolchains-open").click();
+    await page.locator("#toolchains-dialog .pack h4", { hasText: "installed" }).waitFor();
+    await page.locator("#toolchains-dialog .add input").fill("annotated_types");
+    await page.locator("#toolchains-dialog .add button").click();
+    await page.locator("#toolchains-dialog .packages span", { hasText: "annotated-types" }).waitFor();
+    await page.locator("#toolchains-close").click();
+    page.once("dialog", (d) => d.accept("uses_package.py"));
+    await page.locator("#new-file").click();
+    await setCode("uses_package.py", "import annotated_types\nprint(annotated_types.Gt(3))\n");
+    await runPython("uses_package.py");
+    assert.match(await output(), /Gt\(gt=3\)/);
+    // A package that isn't installed fails to import.
+    page.once("dialog", (d) => d.accept("missing.py"));
+    await page.locator("#new-file").click();
+    await setCode("missing.py", "import numpy\n");
+    await runPython("missing.py");
+    assert.match(await output(), /ModuleNotFoundError[^]*Exited with code 1/);
+  });
+
   await step("a new version installs without downloading the toolchain or docs again", async () => {
     const sw = join(site, "sw.js");
     writeFileSync(sw, readFileSync(sw, "utf8").replace(/^const VERSION = "(.*)";$/m, 'const VERSION = "$1-next";'));
@@ -496,6 +542,13 @@ try {
     // AI suggestions stay on, their model loaded from the cache.
     await aiReady(offline);
     assert.ok(await suggestion(offline));
+    // So does Python, after an update too.
+    await offline.locator('#file-list li[data-name="hello.py"]').click();
+    await offline.locator("#run:not([disabled])").click();
+    await offline.locator("#stdin:not([disabled])").waitFor({ timeout: 120_000 });
+    await offline.locator("#stdin").fill("Offline");
+    await offline.locator("#stdin").press("Enter");
+    await offline.locator("#output", { hasText: "Hello, Offline!" }).waitFor({ timeout: 60_000 });
   });
 
   await step("the docs work offline, search included", async () => {

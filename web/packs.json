@@ -1,0 +1,35 @@
+{
+  "python": {
+    "title": "Python 3.14",
+    "about": "CPython 3.14 compiled to WebAssembly by Pyodide 314.0.8 (MPL-2.0), with its standard library. Packages such as numpy and pandas can be added.",
+    "base": "https://cdn.jsdelivr.net/pyodide/v314.0.8/full/",
+    "files": [
+      {
+        "name": "pyodide.mjs",
+        "sha256": "1bb8cc14f9405aaa7cd4e00c12edd0a8539de9cc026618d6ee5a9663f367dc70",
+        "size": 17758
+      },
+      {
+        "name": "pyodide.asm.mjs",
+        "sha256": "22514b8be6980e28a02c8b1d6387ce8dfe666fc4edf8d547cff5dce29ff4d972",
+        "size": 1250259
+      },
+      {
+        "name": "pyodide.asm.wasm",
+        "sha256": "e14d49ceca9b4a0e274ea918f3a898de2d3880b6e5573a6cfe1a2267ecc70329",
+        "size": 9597892
+      },
+      {
+        "name": "python_stdlib.zip",
+        "sha256": "2bd3394a145bfbbe5bbc9d9d6ab9136abbb986c6fef6c142b3a2962227aa5c28",
+        "size": 2545550
+      },
+      {
+        "name": "pyodide-lock.json",
+        "sha256": "5dc2fc119108bc148c7457dc86e7675b5c87e1cafd420b9c34c1eaef7b36c010",
+        "size": 119077
+      }
+    ],
+    "lock": "pyodide-lock.json"
+  }
+}

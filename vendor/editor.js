@@ -7,6 +7,7 @@ import { indentUnit } from "@codemirror/language";
 import { acceptCompletion, closeCompletion, ifNotIn, startCompletion } from "@codemirror/autocomplete";
 import { lintGutter, setDiagnostics } from "@codemirror/lint";
 import { rust, rustLanguage } from "@codemirror/lang-rust";
+import { python } from "@codemirror/lang-python";
 import { oneDark } from "@codemirror/theme-one-dark";
 import { rustCompletions } from "./completion.js";
 import { acceptGhost, dropGhost, ghostText } from "./ghost.js";
@@ -54,7 +55,7 @@ export function createEditor(parent, { onChange, keys = [], onSave = () => {}, o
     if (word) onDefinition(state.sliceDoc(word.from, word.to), word.from);
     return word !== null;
   };
-  const extensions = () => [
+  const extensions = (name) => [
     vimMode.of(vimExtension()),
     keymap.of([...keys, tab, { key: "Escape", run: dropGhost },
       { key: "F12", run: (v) => definition(v.state, v.state.selection.main.head) }]),
@@ -72,7 +73,8 @@ export function createEditor(parent, { onChange, keys = [], onSave = () => {}, o
     tooltips({ parent: document.body }),
     basicSetup,
     indentUnit.of("    "),
-    rust(),
+    // The language, by the file's name: Rust, or Python for .py.
+    name.endsWith(".py") ? python() : rust(),
     rustLanguage.data.of({
       autocomplete: ifNotIn(["String", "RawString", "Char", "LineComment", "BlockComment"],
         rustCompletions((...args) => typeMethods?.(...args) ?? null)),
@@ -88,7 +90,7 @@ export function createEditor(parent, { onChange, keys = [], onSave = () => {}, o
   return {
     /** Show file `name`, creating its state from `text` the first time. */
     open(name, text) {
-      if (!states.has(name)) states.set(name, EditorState.create({ doc: text, extensions: extensions() }));
+      if (!states.has(name)) states.set(name, EditorState.create({ doc: text, extensions: extensions(name) }));
       view.setState(states.get(name));
       view.focus();
     },

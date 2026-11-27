@@ -45,6 +45,7 @@
       <label title="Edit with Vim's keys: Escape for normal mode, :w to save.">
         <input type="checkbox" id="vim"> Vim key bindings
       </label>
+      <button id="toolchains-open" title="Choose which languages and packages are downloaded">Toolchains…</button>
       <label id="ai-toggle" title="A small language model, run on this device, suggests the rest of the line, greyed out: Tab takes it, or Shift-Tab when a completion list is open too. Downloads 145 MB the first time.">
         <input type="checkbox" id="ai"> AI suggestions (145 MB)
       </label>
@@ -78,7 +79,7 @@
       <button id="import" title="Import .rs files from your computer">Import…</button>
       <button id="export" title="Download the open file">Export file</button>
       <button id="export-all" title="Download the project's files as a .zip">Export all</button>
-      <input id="import-input" type="file" accept=".rs,text/plain" multiple hidden>
+      <input id="import-input" type="file" accept=".rs,.py,text/plain" multiple hidden>
     </div>
   </nav>
   <section id="editor"></section>
@@ -89,6 +90,14 @@
   <div id="files-handle" class="handle" title="Drag to resize; double-click to reset"></div>
   <div id="terminal-handle" class="handle" title="Drag to resize; double-click to reset"></div>
 </main>
+<dialog id="toolchains-dialog">
+  <h3>Toolchains</h3>
+  <p class="hint">Rust is built in. Other languages are downloaded only when you install them (or first
+    run one of their files), and then work offline, as do the packages you add.</p>
+  <div id="toolchains-list"></div>
+  <p id="toolchains-status" class="hint" role="status"></p>
+  <div class="buttons"><button id="toolchains-close">Close</button></div>
+</dialog>
 <dialog id="sync-dialog">
   <h3>Sync with GitHub</h3>
   <p class="hint">This project's files are the <code>.rs</code> files under <code>src/</code> in a folder of a

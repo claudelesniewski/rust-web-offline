@@ -122,3 +122,20 @@ a.loc:hover { text-decoration: underline; color: #7cc4ff; }
   white-space: nowrap; vertical-align: bottom;
 }
 .cm-tooltip.cm-completionInfo { max-width: 360px; }
+
+#sync-dialog {
+  width: min(460px, calc(100vw - 32px)); color: var(--text); background: var(--panel);
+  border: 1px solid var(--border); border-radius: 6px; padding: 16px 18px;
+}
+#sync-dialog::backdrop { background: rgb(0 0 0 / 0.5); }
+#sync-dialog h3 { margin: 0 0 8px; }
+#sync-dialog label { display: grid; grid-template-columns: 8em 1fr; align-items: center; margin: 6px 0; }
+#sync-dialog input {
+  font: inherit; color: var(--text); background: var(--bg);
+  border: 1px solid var(--border); border-radius: 4px; padding: 4px 6px;
+}
+#sync-dialog .hint { color: var(--muted); font-size: 13px; margin: 6px 0; }
+#sync-dialog .buttons { display: flex; gap: 8px; justify-content: flex-end; }
+#sync-status { min-height: 1.2em; }
+#sync-status a { color: #7cc4ff; }
+button.link { border: 0; background: none; padding: 0; color: #7cc4ff; text-decoration: underline; font-size: inherit; }

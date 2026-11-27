@@ -53,6 +53,7 @@
           <button id="new-project">New project…</button>
           <button id="rename-project">Rename project…</button>
           <button id="delete-project">Delete project…</button>
+          <button id="github-project">GitHub…</button>
         </div>
       </details>
     </div>
@@ -73,5 +74,24 @@
     <input id="stdin" disabled autocomplete="off" spellcheck="false" aria-label="Program input">
   </section>
 </main>
+<dialog id="sync-dialog">
+  <h3>Sync with GitHub</h3>
+  <p class="hint">This project's files are the <code>.rs</code> files under <code>src/</code> in a folder of a
+    repository, as in a Cargo package (a <code>Cargo.toml</code> is added if there is none).</p>
+  <label>Repository <input id="sync-repo" placeholder="owner/name" spellcheck="false"></label>
+  <label>Branch <input id="sync-branch" spellcheck="false"></label>
+  <label>Folder <input id="sync-dir" placeholder="(the repository's top)" spellcheck="false"></label>
+  <label>Token <input id="sync-token" type="password" autocomplete="off" placeholder="github_pat_…"></label>
+  <p class="hint">A fine-grained personal access token for the repository, with Contents: read and write
+    (github.com → Settings → Developer settings → Personal access tokens). Kept in this browser only.
+    <button id="sync-forget" class="link">Forget it</button></p>
+  <label>Commit message <input id="sync-message" value="Update from Rust Offline"></label>
+  <p id="sync-status" role="status"></p>
+  <div class="buttons">
+    <button id="sync-pull">Pull</button>
+    <button id="sync-push" class="primary">Push</button>
+    <button id="sync-close">Close</button>
+  </div>
+</dialog>
 </body>
 </html>

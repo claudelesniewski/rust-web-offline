@@ -6,4 +6,3 @@
   unreachable (CI's Actions cache holds a copy meanwhile).
 - Try some creative prompting, constraints, etc. (possibly in conjunction
   with the toolchain) to improve AI suggestions.
-- Sync a project with a GitHub repository.

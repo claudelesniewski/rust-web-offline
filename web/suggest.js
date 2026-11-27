@@ -31,13 +31,15 @@ export function withoutComment(text) {
 }
 
 /**
- * `complete(prefix, signal, { grammar })`: the model's rest of the line.
+ * `complete(prefix, signal, { grammar, file, others })`: the model's rest
+ * of the line, in file `main()`, with the project's other files `others()`
+ * ([{ name, content }]) for context.
  * `members(doc, from, to)`: completion options after a dot ([] if nothing
  * is there, null if unknown), or null to not constrain.
  * `check(source)`: rustc's output for the program with `source` as file
  * `main()`, or null to not check. Returns `suggest(doc, pos, signal)`.
  */
-export function createSuggester({ complete, members = null, check = null, main = () => "main.rs" }) {
+export function createSuggester({ complete, members = null, check = null, main = () => "main.rs", others = () => [] }) {
   return async function suggest(doc, pos, signal) {
     const prefix = doc.slice(0, pos);
     const suffix = doc.slice(pos);
@@ -51,7 +53,7 @@ export function createSuggester({ complete, members = null, check = null, main =
     // In code, a comment at the end is chatter; one alone always compiles,
     // and is no use as a suggestion. (In a comment, all is comment.)
     const line = prefix.slice(prefix.lastIndexOf("\n") + 1);
-    const raw = await complete(prefix, signal, { grammar });
+    const raw = await complete(prefix, signal, { grammar, file: main(), others: others() });
     const text = withoutComment(line) !== line ? raw : withoutComment(raw);
     if (!text.trim() || signal?.aborted) return "";
     if (check && errorOnLine(await check(prefix + text + suffix), main(), prefix.split("\n").length)) return "";

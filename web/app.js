@@ -10,6 +10,7 @@ import { createTypeCompletion } from "./types.js";
 import { createSuggester } from "./suggest.js";
 import { createGitHub } from "./github.js";
 import * as sync from "./sync.js";
+import { initLayout } from "./layout.js";
 
 const $ = (id) => document.getElementById(id);
 const setStatus = (text) => { $("status").textContent = text; };
@@ -639,5 +640,6 @@ requestPersistence();
 store.getSetting("ai").then((on) => { if (on) setAI(true, { ask: false }); });
 store.getSetting("types").then((on) => setTypes(on ?? true));
 store.getSetting("vim").then((on) => { if (on) setVim(true); });
+initLayout($("main"), $("files-handle"), $("terminal-handle"), store);
 if (crossOriginIsolated) startCompiler();
 else setStatus("Setting up…");

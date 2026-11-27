@@ -46,11 +46,17 @@ header a { color: var(--muted); font-size: 13px; }
 
 main {
   flex: 1; min-height: 0;
-  display: grid; grid-template-columns: 180px 1fr; grid-template-rows: 3fr 2fr;
+  display: grid; grid-template-columns: var(--files-width, 180px) 1fr; grid-template-rows: var(--rows, 3fr 2fr);
   grid-template-areas: "files editor" "files terminal";
 }
 main.hide-files { grid-template-columns: 0 1fr; }
-main.hide-files #files { display: none; }
+main.hide-files #files, main.hide-files #files-handle { display: none; }
+
+/* Handles to drag, over the borders between the panes (web/layout.js). */
+.handle { z-index: 5; touch-action: none; }
+.handle:hover, .handle:active { background: var(--accent); }
+#files-handle { grid-area: files; justify-self: end; width: 6px; margin-right: -3px; cursor: col-resize; }
+#terminal-handle { grid-area: terminal; align-self: start; height: 6px; margin-top: -3px; cursor: row-resize; }
 
 #files {
   grid-area: files; display: flex; flex-direction: column; min-height: 0;
@@ -111,7 +117,7 @@ a.loc:hover { text-decoration: underline; color: #7cc4ff; }
 
 @media (max-width: 700px) {
   main { grid-template-columns: 0 1fr; }
-  main #files { display: none; }
+  main #files, main #files-handle { display: none; }
   main.show-files { grid-template-columns: 150px 1fr; }
   main.show-files #files { display: flex; }
 }

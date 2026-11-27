@@ -9,6 +9,15 @@
 <link rel="manifest" href="manifest.webmanifest">
 <link rel="icon" href="icons/icon-192.png">
 <link rel="stylesheet" href="style.css">
+<script>
+  // A new version of the app can take over while this one is still loading:
+  // note it, as app.js may come too late to hear of it.
+  window.swTakeover = { had: !!navigator.serviceWorker?.controller, happened: false };
+  navigator.serviceWorker?.addEventListener("controllerchange", () => {
+    swTakeover.happened = true;
+    swTakeover.then?.();
+  });
+</script>
 <script type="module" src="app.js"></script>
 </head>
 <body>

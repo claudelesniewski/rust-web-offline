@@ -42,10 +42,10 @@ async function setupServiceWorker() {
   }
   const sw = navigator.serviceWorker;
   sw.addEventListener("message", onServiceWorkerMessage);
-  const hadController = !!sw.controller;
-  sw.addEventListener("controllerchange", () => {
+  // index.html notes when a new service worker takes over, even before now.
+  const takeover = () => {
     if (!crossOriginIsolated) reloadForIsolation();
-    else if (hadController) {
+    else if (swTakeover.had) {
       // A new version took over; the page still runs the old one.
       $("status").innerHTML = "";
       const b = document.createElement("button");
@@ -53,7 +53,9 @@ async function setupServiceWorker() {
       b.onclick = () => location.reload();
       $("status").append(b);
     }
-  });
+  };
+  if (swTakeover.happened) takeover();
+  else swTakeover.then = takeover;
   await sw.register("sw.js", { type: "module" });
   if (sw.controller) sw.controller.postMessage({ type: "offline-status" });
   if (!crossOriginIsolated && sw.controller) reloadForIsolation();

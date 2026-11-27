@@ -358,12 +358,18 @@ try {
     const sw = join(site, "sw.js");
     writeFileSync(sw, readFileSync(sw, "utf8").replace(/^const VERSION = "(.*)";$/m, 'const VERSION = "$1-next";'));
     requests.length = 0;
+    // A slow page (as on a small Chromebook): the new version takes over
+    // while the app is still loading, and must still be offered.
+    const cdp = await context.newCDPSession(page);
+    await cdp.send("Emulation.setCPUThrottlingRate", { rate: 20 });
     await page.reload();
-    await page.locator("#status button", { hasText: "Update ready" }).click({ timeout: 60_000 });
+    await page.locator("#status button", { hasText: "Update ready" }).waitFor({ timeout: 60_000 });
+    await cdp.send("Emulation.setCPUThrottlingRate", { rate: 1 });
+    await page.locator("#status button", { hasText: "Update ready" }).click();
     await waitReady();
     // Content-hashed files: the toolchain and the docs' chunks.
     assert.deepEqual(requests.filter((r) => /\/toolchain\/.*\.[0-9a-f]{12}\.|\/docs\/\d+\./.test(r)), []);
-    assert.match(await page.locator("#offline").innerText(), /Ready for offline use/);
+    await page.locator("#offline.ready").waitFor();
   });
 
   await step("works offline after closing and reopening", async () => {
@@ -378,7 +384,7 @@ try {
     await offline.waitForFunction(() => /Exited with code 0/.test(document.querySelector("#output").innerText),
       null, { timeout: 120_000 });
     assert.match(await offline.locator("#output").innerText(), /^42$/m);
-    assert.match(await offline.locator("#offline").innerText(), /Ready for offline use/);
+    await offline.locator("#offline.ready").waitFor();
     // AI suggestions stay on, their model loaded from the cache.
     await aiReady(offline);
     assert.ok(await suggestion(offline));

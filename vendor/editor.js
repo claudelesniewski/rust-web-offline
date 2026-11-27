@@ -37,9 +37,10 @@ const tab = {
 
 /** An editor in `parent`. `onChange(text)` follows every edit; `keys` are
  *  extra bindings, as in CodeMirror's keymap ({ key, run }); `onSave` is
- *  called on Vim's :w. Each file gets its own state (and undo history) via
+ *  called on Vim's :w; `onDefinition(word, pos)` on F12 or Ctrl/Cmd-click on
+ *  a word. Each file gets its own state (and undo history) via
  *  `open(name, text)`. */
-export function createEditor(parent, { onChange, keys = [], onSave = () => {} }) {
+export function createEditor(parent, { onChange, keys = [], onSave = () => {}, onDefinition = () => {} }) {
   const states = new Map();
   let suggest = null;
   let typeMethods = null;
@@ -47,9 +48,25 @@ export function createEditor(parent, { onChange, keys = [], onSave = () => {} })
   const vimMode = new Compartment();
   let vimOn = false;
   const vimExtension = () => (vimOn ? vim({ status: true }) : []);
+  /** Ask for the definition of the word at `pos`, if there is one. */
+  const definition = (state, pos) => {
+    const word = state.wordAt(pos);
+    if (word) onDefinition(state.sliceDoc(word.from, word.to), word.from);
+    return word !== null;
+  };
   const extensions = () => [
     vimMode.of(vimExtension()),
-    keymap.of([...keys, tab, { key: "Escape", run: dropGhost }]),
+    keymap.of([...keys, tab, { key: "Escape", run: dropGhost },
+      { key: "F12", run: (v) => definition(v.state, v.state.selection.main.head) }]),
+    EditorView.domEventHandlers({
+      mousedown(e, v) {
+        if (!(e.ctrlKey || e.metaKey)) return false;
+        const pos = v.posAtCoords(e);
+        if (pos === null || !definition(v.state, pos)) return false;
+        e.preventDefault();
+        return true;
+      },
+    }),
     ghostText(() => suggest),
     // Completion lists and their docs may reach beyond the editor's pane.
     tooltips({ parent: document.body }),

@@ -147,6 +147,19 @@ try {
     await setCode("main.rs", 'mod geometry;\nfn main() { println!("{}", geometry::double(21)); }\n');
   });
 
+  await step("F12 goes to a definition in another file", async () => {
+    await setCode("geometry.rs", "// Geometry.\npub fn double(x: i32) -> i32 { x * 2 }\n");
+    await setCode("main.rs", 'mod geometry;\nfn main() { println!("{}", geometry::double(21)); }\n');
+    // Into `double`, from the end of `geometry::double(21)); }`.
+    await page.keyboard.press("ArrowUp");
+    await page.keyboard.press("End");
+    for (let i = 0; i < 10; i++) await page.keyboard.press("ArrowLeft");
+    await page.keyboard.press("F12");
+    await page.locator('#file-list li.active[data-name="geometry.rs"]').waitFor();
+    assert.match(await page.locator(".cm-activeLine").innerText(), /^pub fn double\(/);
+    await setCode("geometry.rs", "pub fn double(x: i32) -> i32 { x * 2 }\n");
+  });
+
   await step("find and replace in all files", async () => {
     await page.locator('#file-list li[data-name="main.rs"]').click();
     await page.keyboard.press("ControlOrMeta+Shift+f");

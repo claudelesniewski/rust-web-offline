@@ -1,6 +1,7 @@
 // The page: files, editor, terminal, and the service worker that makes it
 // all work offline.
 import { createEditor } from "./editor.js";
+import { parseDiagnostics } from "./diagnostics.js";
 import { Terminal } from "./terminal.js";
 import { EXAMPLES } from "./examples.js";
 import { zip } from "./zip.js";
@@ -92,10 +93,13 @@ let active = null;
 const saveTimers = new Map();
 /** id -> name of every project. */
 const projects = new Map();
+/** file -> the errors and warnings of the last compile in it. */
+let diagnostics = new Map();
 
 const editor = createEditor($("editor"), {
   onChange(text) {
     files.set(active, text);
+    diagnostics.delete(active);
     scheduleSave(active);
   },
   keys: [
@@ -153,6 +157,7 @@ function openFile(name) {
   if (active !== null && files.has(active)) editor.save(active);
   active = name;
   editor.open(name, files.get(name));
+  editor.setDiagnostics(diagnostics.get(name) ?? []);
   store.setSetting(`active:${project}`, name);
   renderFiles();
 }
@@ -513,6 +518,8 @@ let ready = false;
 /** The id of the request in progress, or null. */
 let current = null;
 let nextId = 1;
+/** What the compiler wrote in the run in progress. */
+let compilerOutput = "";
 
 function setBusy(busy) {
   $("run").disabled = busy || !ready;
@@ -533,7 +540,10 @@ function startCompiler() {
       checks.delete(m.id);
     } else if (m.id !== undefined && m.id !== current) {
       // From a request that was stopped.
-    } else if (m.type === "output") terminal.write(m.stream, m.text);
+    } else if (m.type === "output") {
+      terminal.write(m.stream, m.text);
+      if (m.stream === "compiler") compilerOutput += m.text;
+    }
     else if (m.type === "done") onDone(m);
     else if (m.type === "error") {
       terminal.write("stderr", `${m.text}\n`);
@@ -548,6 +558,7 @@ const secs = (ms) => `${(ms / 1000).toFixed(1)} s`;
 function onDone(m) {
   terminal.linkify((file) => files.has(file));
   if (m.stage === "compile") {
+    showDiagnostics(parseDiagnostics(compilerOutput));
     if (m.code === 0) {
       terminal.write("info", `Compiled in ${secs(m.ms)}. Running…\n`);
       terminal.setRunning(true);
@@ -565,6 +576,12 @@ function onDone(m) {
   }
 }
 
+/** Show `list` in the editor, file by file, in place of any before. */
+function showDiagnostics(list) {
+  diagnostics = Map.groupBy(list.filter((d) => files.has(d.file)), (d) => d.file);
+  editor.setDiagnostics(diagnostics.get(active) ?? []);
+}
+
 function finishRequest() {
   current = null;
   terminal.setRunning(false);
@@ -578,6 +595,8 @@ function run() {
   setBusy(true);
   terminal.clear();
   terminal.write("info", `Compiling ${active}…\n`);
+  compilerOutput = "";
+  showDiagnostics([]);
   const list = [...files].map(([name, content]) => ({ name, content }));
   compiler.postMessage({ type: "run", id: current, files: list, main: active });
 }

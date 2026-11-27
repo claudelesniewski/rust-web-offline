@@ -5,6 +5,7 @@ import { EditorView, keymap, tooltips } from "@codemirror/view";
 import { indentLess, indentMore } from "@codemirror/commands";
 import { indentUnit } from "@codemirror/language";
 import { acceptCompletion, closeCompletion, ifNotIn, startCompletion } from "@codemirror/autocomplete";
+import { lintGutter, setDiagnostics } from "@codemirror/lint";
 import { rust, rustLanguage } from "@codemirror/lang-rust";
 import { oneDark } from "@codemirror/theme-one-dark";
 import { rustCompletions } from "./completion.js";
@@ -60,6 +61,9 @@ export function createEditor(parent, { onChange, keys = [], onSave = () => {} })
         rustCompletions((...args) => typeMethods?.(...args) ?? null)),
     }),
     oneDark,
+    lintGutter(),
+    // Diagnostics are of the text that was compiled: an edit clears them.
+    EditorState.transactionExtender.of((tr) => (tr.docChanged ? setDiagnostics(tr.startState, []) : null)),
     EditorView.updateListener.of((u) => { if (u.docChanged) onChange(u.state.doc.toString()); }),
   ];
   const view = new EditorView({ parent });
@@ -86,6 +90,16 @@ export function createEditor(parent, { onChange, keys = [], onSave = () => {} })
     },
     /** Remember the current state of `name` (call before switching away). */
     save(name) { states.set(name, view.state); },
+    /** Show `list` of { line, col, width, severity, message } (from 1) in
+     *  the open file, in place of any before. */
+    setDiagnostics(list) {
+      const doc = view.state.doc;
+      view.dispatch(setDiagnostics(view.state, list.map((d) => {
+        const l = doc.line(Math.min(Math.max(d.line, 1), doc.lines));
+        const from = Math.min(l.from + Math.max(d.col, 1) - 1, l.to);
+        return { from, to: Math.min(from + d.width, l.to), severity: d.severity, message: d.message };
+      })));
+    },
     /** Turn inline suggestions on with `suggest(doc, pos, signal)`, which
      *  returns the rest of the line at `pos`, or off with null. */
     setSuggest(fn) { suggest = fn; },

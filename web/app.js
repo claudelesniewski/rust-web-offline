@@ -1,6 +1,7 @@
 // The page: files, editor, terminal, and the service worker that makes it
 // all work offline.
 import { createEditor } from "./editor.js";
+import { findDefinition } from "./definitions.js";
 import { Terminal } from "./terminal.js";
 import { EXAMPLES } from "./examples.js";
 import { zip } from "./zip.js";
@@ -103,7 +104,19 @@ const editor = createEditor($("editor"), {
     { key: "Shift-Mod-f", run: () => (format(), true) },
   ],
   onSave: () => flushSaves(),
+  onDefinition(word, pos) {
+    const at = findDefinition(Object.fromEntries(files), active, word, pos);
+    if (at) gotoLocation(at.file, at.line, at.col);
+    else setStatus(`No definition of ${word} found`);
+  },
 });
+
+/** Open `file` (if it exists) with the cursor at `line` and `col`. */
+function gotoLocation(file, line, col) {
+  if (!files.has(file)) return;
+  if (file !== active) openFile(file);
+  editor.goto(line, col);
+}
 
 function scheduleSave(name) {
   clearTimeout(saveTimers.get(name));
@@ -450,11 +463,7 @@ const terminal = new Terminal($("output"), $("stdin"), {
     compiler?.postMessage({ type: "eof", id: current });
   },
   // A place in the code, in an error or a panic: go there.
-  onLocation(file, line, col) {
-    if (!files.has(file)) return;
-    if (file !== active) openFile(file);
-    editor.goto(line, col);
-  },
+  onLocation: gotoLocation,
 });
 let compiler = null;
 let ready = false;

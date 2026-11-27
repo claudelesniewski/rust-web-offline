@@ -9,6 +9,15 @@
 <link rel="manifest" href="manifest.webmanifest">
 <link rel="icon" href="icons/icon-192.png">
 <link rel="stylesheet" href="style.css">
+<script>
+  // A new version of the app can take over while this one is still loading:
+  // note it, as app.js may come too late to hear of it.
+  window.swTakeover = { had: !!navigator.serviceWorker?.controller, happened: false };
+  navigator.serviceWorker?.addEventListener("controllerchange", () => {
+    swTakeover.happened = true;
+    swTakeover.then?.();
+  });
+</script>
 <script type="module" src="app.js"></script>
 </head>
 <body>
@@ -42,6 +51,7 @@
     </div>
   </details>
   <span class="spacer"></span>
+  <span id="update"></span>
   <span id="status">Starting…</span>
   <span id="offline" title="Whether everything is saved for offline use">Offline: checking…</span>
   <a href="toolchain/licenses.html" target="_blank" title="Licences of the Rust toolchain">Licences</a>

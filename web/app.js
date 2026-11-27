@@ -496,6 +496,7 @@ async function setAI(on, { ask = true } = {}) {
       members: (doc, from, to) => ($("types").checked ? typeMembers(doc, from, to) : null),
       check,
       main: () => active,
+      others: () => [...files].filter(([name]) => name !== active).map(([name, content]) => ({ name, content })),
     }));
     state("on");
   } catch (e) {

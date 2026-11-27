@@ -105,16 +105,19 @@ service worker (sw.js): precache everything, serve from cache (docs from
   Hugging Face at a pinned revision, checked by SHA-256) into a cache of
   their own, which the service worker keeps across versions. After a pause
   in typing at the end of a line, `vendor/ghost.js` asks for the rest of it
-  (`web/suggest.js`). The prompt is a short preamble of idiomatic Rust (which
-  steers this small, general model away from Java and C++ habits) and the
-  last 1,500 characters before the cursor. The toolchain then helps:
+  (`web/suggest.js`). The prompt lays out the project as files of a
+  repository, in the format of the model's code training data (StarCoder2's:
+  `<repo_name>…<file_sep>src/geometry.rs …<file_sep>src/main.rs …`): the
+  other files (2,000 characters at most), then the open one up to the cursor
+  (1,500). The toolchain then helps:
   - Right after a dot, type-aware completion finds the members there, and a
     llama.cpp grammar (GBNF) makes the model start with one of them.
   - The suggestion is type-checked in place, and not shown if rustc finds
     an error on its line (or if it is only a comment, which always compiles).
 
   Measured on 18 lines of Rust (`push(i)`, `read_line(&mut input)`,
-  `.iter().enumerate()`, …), in headless Chromium on 4 cores:
+  `.iter().enumerate()`, …), in headless Chromium on 4 cores, with the
+  preamble prompt described below:
 
   | | right (and compile) | shown | shown that compile | time |
   | --- | --- | --- | --- | --- |
@@ -124,7 +127,19 @@ service worker (sw.js): precache everything, serve from cache (docs from
   | and type-checked (now) | 8 | 12 | 12 | 0.8 s |
 
   Trying other samples when the check fails found one more right line, and
-  was 40 to 90% slower. Qwen2.5-Coder-0.5B, a much better code model, is
+  was 40 to 90% slower.
+
+  The prompt was first a preamble of idiomatic Rust before the code. Adding
+  8 lines unlike anything in it showed that it helped mostly where it held
+  the answer (`read_line`, `entry(…).or_insert(0)`). On all 26, with the
+  checks above: the preamble got 9 right (1 of the 8 new ones) in 0.7 s; the
+  repository layout without it, 9 or 10 (3 of the 8) in 0.5 s, and other
+  layouts (a `Cargo.toml` first, the Book's repository name) did no better.
+  With the other files in the prompt, the model names their items (`area(`,
+  `Circle(`) where it guessed (`new()`) without, though its arguments don't
+  always compile yet.
+
+  Qwen2.5-Coder-0.5B, a much better code model, is
   430 MB at 4 bits, too much for small Chromebooks. Chat-tuned variants
   (SmolLM2-135M-Instruct, kimi-coder-135m) complete code no better (5 of 12
   test lines, as the base model) and answer Rust questions confidently

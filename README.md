@@ -18,6 +18,10 @@ library run as WebAssembly on your machine; nothing is sent to a server.
   read and write** (github.com → Settings → Developer settings → Personal
   access tokens → Fine-grained tokens), kept in the browser only.
 - Standard library only (no crates.io).
+- Optional **Python** (Options → **Toolchains…**): Python 3.14 from Pyodide,
+  a 13 MB download when first installed or run, which then works offline as
+  well. `.py` files run with **Run**, `input()` included; add packages from
+  Pyodide's (numpy, pandas, …) in the same dialog, or remove them.
 - Optional Vim key bindings (in **Options**), with `:w` to save.
 - Type-aware completion after `.` (on by default, in **Options**): the
   compiler finds the type, and the offline docs list its methods.
@@ -49,3 +53,5 @@ Buckley (Apache-2.0); `web/compiler-worker.js` is adapted from the former.
 The documentation is the `rust-docs` component of the same nightly
 (MIT/Apache-2.0). The deployed site includes the toolchain's licences (`toolchain/licenses.html`,
 `browser-kernel/LICENSE`).
+Python is [Pyodide](https://pyodide.org) (MPL-2.0), downloaded from the
+jsDelivr CDN only if installed.

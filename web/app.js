@@ -14,6 +14,7 @@ import { createGitHub } from "./github.js";
 import * as sync from "./sync.js";
 import { initLayout } from "./layout.js";
 import { find, replaceAll } from "./find.js";
+import * as packs from "./packs.js";
 
 const $ = (id) => document.getElementById(id);
 const setStatus = (text) => { $("status").textContent = text; };
@@ -176,11 +177,11 @@ function openFile(name) {
   renderFiles();
 }
 
-/** A name like `base` that no file has yet: base.rs, base_2.rs, … */
+/** A name like `base` that no file has yet: base.rs, base_2.rs, … (or .py) */
 function freeName(base) {
-  const stem = base.replace(/\.rs$/, "");
-  let name = `${stem}.rs`;
-  for (let i = 2; files.has(name); i++) name = `${stem}_${i}.rs`;
+  const [, stem, ext = ".rs"] = base.match(/^(.*?)(\.(?:rs|py))?$/);
+  let name = stem + ext;
+  for (let i = 2; files.has(name); i++) name = `${stem}_${i}${ext}`;
   return name;
 }
 
@@ -188,10 +189,10 @@ function freeName(base) {
 function askName(message, initial) {
   let name = prompt(message, initial)?.trim();
   if (!name) return null;
-  if (!name.endsWith(".rs")) name += ".rs";
+  if (!/\.(?:rs|py)$/.test(name)) name += ".rs";
   if (!store.validName(name)) {
     alert(`"${name}" is not a valid name: use letters, digits and _, starting with a letter, ` +
-      "with folders before / (as in geometry/shapes.rs), and ending in .rs.");
+      "with folders before / (as in geometry/shapes.rs), and ending in .rs (Rust) or .py (Python).");
     return null;
   }
   if (files.has(name)) {
@@ -425,7 +426,7 @@ function setupFileActions() {
   $("import-input").onchange = async (e) => {
     for (const file of e.target.files) {
       let name = file.name.replace(/[^A-Za-z0-9_.]/g, "_").replace(/^(?=[0-9])/, "_");
-      if (!name.endsWith(".rs")) name += ".rs";
+      if (!/\.(?:rs|py)$/.test(name)) name += ".rs";
       if (!store.validName(name)) name = freeName("imported");
       if (files.has(name) && !confirm(`Replace the existing ${name}?`)) name = freeName(name);
       await addFile(name, await file.text());
@@ -515,10 +516,14 @@ function setupFind() {
 // ---- Compiling and running -------------------------------------------------
 
 const terminal = new Terminal($("output"), $("stdin"), {
-  onInput: (text) => compiler?.postMessage({ type: "stdin", id: current, text }),
+  onInput: (text) => {
+    if (runningPython) pythonInput(text);
+    else compiler?.postMessage({ type: "stdin", id: current, text });
+  },
   onEof: () => {
     terminal.write("info", "^D\n");
-    compiler?.postMessage({ type: "eof", id: current });
+    if (runningPython) pythonInput(null);
+    else compiler?.postMessage({ type: "eof", id: current });
   },
   // A place in the code, in an error or a panic: go there.
   onLocation: gotoLocation,
@@ -594,11 +599,13 @@ function showDiagnostics(list) {
 
 function finishRequest() {
   current = null;
+  runningPython = false;
   terminal.setRunning(false);
   setBusy(false);
 }
 
 function run() {
+  if (active.endsWith(".py")) return runPython();
   if (!ready || current !== null) return;
   flushSaves();
   current = nextId++;
@@ -612,6 +619,7 @@ function run() {
 }
 
 function format() {
+  if (!active.endsWith(".rs")) return setStatus("Format is for Rust files.");
   if (!ready || current !== null) return;
   current = nextId++;
   setBusy(true);
@@ -621,8 +629,165 @@ function format() {
 
 function stop() {
   if (current === null) return;
+  if (runningPython) {
+    // Python can't be stopped from outside: start it afresh next time.
+    python.terminate();
+    python = null;
+    terminal.write("info", "\nStopped.\n");
+    return finishRequest();
+  }
   compiler.postMessage({ type: "kill", id: current });
 }
+
+// ---- Python ----------------------------------------------------------------
+
+let python = null; // its worker, started on the first run
+let runningPython = false;
+/** The program's stdin, shared with the worker (see python-worker.js). */
+let pythonStdin = null;
+/** Lines typed before the program asked for them; whether it is asking. */
+const pythonQueue = [];
+let pythonWaiting = false;
+
+/** Give the waiting program `line`, or the end of its input (null). */
+function sendStdin(line) {
+  const { ctrl, bytes } = pythonStdin;
+  const encoded = line === null ? null : new TextEncoder().encode(line).subarray(0, bytes.length);
+  if (encoded) bytes.set(encoded);
+  ctrl[1] = encoded ? encoded.length : -1;
+  Atomics.store(ctrl, 0, 1);
+  Atomics.notify(ctrl, 0);
+  pythonWaiting = false;
+}
+
+function pythonInput(line) {
+  if (pythonWaiting) sendStdin(line);
+  else pythonQueue.push(line);
+}
+
+function startPython() {
+  python = new Worker("python-worker.js", { type: "module" });
+  const shared = new SharedArrayBuffer(8 + 65536);
+  pythonStdin = { ctrl: new Int32Array(shared, 0, 2), bytes: new Uint8Array(shared, 8) };
+  python.postMessage({ type: "init", stdin: shared });
+  python.onmessage = ({ data: m }) => {
+    if (m.type === "status") setStatus(m.text);
+    else if (m.id !== current) {
+      // From a run that was stopped.
+    } else if (m.type === "output") terminal.write(m.stream, m.text);
+    else if (m.type === "stdin") {
+      if (pythonQueue.length) sendStdin(pythonQueue.shift());
+      else pythonWaiting = true;
+    } else if (m.type === "done") {
+      terminal.write("info", `\nExited with code ${m.code} after ${secs(m.ms)}.\n`);
+      finishRequest();
+    } else if (m.type === "error") {
+      terminal.write("stderr", `${m.text}\n`);
+      finishRequest();
+    }
+  };
+}
+
+/** Install the Python pack, asking first; whether it is installed. */
+async function ensurePython() {
+  const pack = (await packs.available()).python;
+  if (await packs.isInstalled(pack, "python")) return true;
+  const size = pack.files.reduce((n, f) => n + f.size, 0);
+  if (!confirm(`Python isn't installed yet. Download it (${mb(size)} MB)? It then works offline.`)) return false;
+  try {
+    await packs.install(pack, "python", (done, total) => setStatus(`Downloading Python: ${mb(done)} / ${mb(total)} MB`));
+    setStatus("Python is installed.");
+    return true;
+  } catch (e) {
+    setStatus(`Python could not be installed: ${e.message}`);
+    return false;
+  }
+}
+
+async function runPython() {
+  if (current !== null || !(await ensurePython())) return;
+  flushSaves();
+  current = nextId++;
+  runningPython = true;
+  pythonQueue.length = 0;
+  pythonWaiting = false;
+  setBusy(true);
+  terminal.clear();
+  terminal.write("info", `Running ${active}…\n`);
+  terminal.setRunning(true);
+  if (!python) startPython();
+  const list = [...files].map(([name, content]) => ({ name, content }));
+  python.postMessage({ type: "run", id: current, files: list, main: active });
+}
+
+/** Fill the Toolchains dialog: each pack, and its packages once installed. */
+async function renderToolchains() {
+  const list = $("toolchains-list");
+  const status = (text) => { $("toolchains-status").textContent = text; };
+  const make = (tag, props = {}, children = []) => {
+    const node = Object.assign(document.createElement(tag), props);
+    node.append(...children);
+    return node;
+  };
+  const busy = async (text, fn) => {
+    status(text);
+    list.querySelectorAll("button, input").forEach((b) => (b.disabled = true));
+    try {
+      await fn();
+      status("");
+    } catch (e) {
+      status(e.message);
+    }
+    await renderToolchains();
+  };
+  const sections = [];
+  for (const [id, pack] of Object.entries(await packs.available())) {
+    const size = pack.files.reduce((n, f) => n + f.size, 0);
+    const installed = await packs.isInstalled(pack, id);
+    const action = installed
+      ? make("button", { textContent: "Remove", onclick: () => busy(`Removing ${pack.title}…`, async () => {
+        python?.terminate();
+        python = null;
+        await packs.remove(id);
+      }) })
+      : make("button", { textContent: `Install (${mb(size)} MB)`, className: "primary",
+        onclick: () => busy(`Downloading ${pack.title}…`, () => packs.install(pack, id,
+          (done, total) => status(`Downloading ${pack.title}: ${mb(done)} / ${mb(total)} MB`))) });
+    const section = make("div", { className: "pack" }, [
+      make("h4", {}, [`${pack.title}${installed ? " · installed" : ""}`, action]),
+      make("p", { className: "hint", textContent: pack.about }),
+    ]);
+    if (installed) {
+      const all = await packs.packages(id, pack);
+      const have = await packs.installedPackages(id, pack);
+      section.append(make("div", { className: "packages" }, have.length
+        ? have.map((name) => make("span", {}, [name, " ", make("button", {
+          className: "link", textContent: "✕", title: `Remove ${name}`,
+          onclick: () => busy(`Removing ${name}…`, () => packs.removePackage(id, pack, name)),
+        })]))
+        : [make("span", { className: "hint", textContent: "No packages yet." })]));
+      const input = make("input", { placeholder: "Add a package, as numpy", spellcheck: false });
+      input.setAttribute("list", `${id}-package-names`);
+      const add = () => input.value.trim() && busy(`Adding ${input.value}…`,
+        () => packs.installPackages(id, pack, [input.value.trim()], status));
+      input.onkeydown = (e) => { if (e.key === "Enter") add(); };
+      section.append(make("div", { className: "add" }, [
+        input,
+        make("button", { textContent: "Add", onclick: add }),
+        make("datalist", { id: `${id}-package-names` }, Object.keys(all).sort().map((n) => make("option", { value: n }))),
+      ]));
+    }
+    sections.push(section);
+  }
+  list.replaceChildren(...sections);
+}
+
+$("toolchains-open").onclick = () => {
+  $("options").open = false;
+  $("toolchains-dialog").showModal();
+  renderToolchains();
+};
+$("toolchains-close").onclick = () => $("toolchains-dialog").close();
 
 // ---- Type-aware completion -------------------------------------------------
 
@@ -640,7 +805,8 @@ function check(source) {
 
 const typeCompletion = createTypeCompletion({ check, fetchText: async (path) => (await fetch(path)).text() });
 
-const typeMembers = (doc, from, to) => typeCompletion(doc, from, to, [...files.values()], active);
+/** Rust files only: the compiler finds the type. */
+const typeMembers = (doc, from, to) => (active.endsWith(".rs") ? typeCompletion(doc, from, to, [...files.values()], active) : null);
 
 function setTypes(on) {
   $("types").checked = on;
@@ -687,14 +853,16 @@ async function setAI(on, { ask = true } = {}) {
     state("loading", "loading…");
     model = await lm.loadModel((done, total) => state("loading", `${mb(done)} / ${mb(total)} MB`));
     if (!$("ai").checked) return model.unload(); // turned off meanwhile
-    editor.setSuggest(createSuggester({
+    const suggest = createSuggester({
       complete: model.complete,
       // Right after a dot, only the members there; with type-aware completion on.
       members: (doc, from, to) => ($("types").checked ? typeMembers(doc, from, to) : null),
       check,
       main: () => active,
       others: () => [...files].filter(([name]) => name !== active).map(([name, content]) => ({ name, content })),
-    }));
+    });
+    // Rust only, for now: the model's prompt and the check are Rust's.
+    editor.setSuggest((doc, pos, signal) => (active.endsWith(".rs") ? suggest(doc, pos, signal) : ""));
     state("on");
   } catch (e) {
     $("ai").checked = false;

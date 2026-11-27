@@ -95,6 +95,11 @@ fn main() {
     }
 }
 `,
+  "hello.py": `# Python, from the Python pack: installed the first time you run it.
+name = input("What's your name? ")
+squares = [n * n for n in range(1, 6)]
+print(f"Hello, {name}! Squares: {squares}, sum {sum(squares)}")
+`,
   "modules.rs": `// Other files are modules: \`mod geometry;\` uses geometry.rs.
 // Create a file named geometry.rs containing:
 //     pub fn double(x: i32) -> i32 { x * 2 }

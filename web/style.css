@@ -129,19 +129,19 @@ a.loc:hover { text-decoration: underline; color: #7cc4ff; }
 }
 .cm-tooltip.cm-completionInfo { max-width: 360px; }
 
-#sync-dialog, #find-dialog {
+#sync-dialog, #find-dialog, #toolchains-dialog {
   width: min(460px, calc(100vw - 32px)); color: var(--text); background: var(--panel);
   border: 1px solid var(--border); border-radius: 6px; padding: 16px 18px;
 }
-#sync-dialog::backdrop, #find-dialog::backdrop { background: rgb(0 0 0 / 0.5); }
-#sync-dialog h3, #find-dialog h3 { margin: 0 0 8px; }
+#sync-dialog::backdrop, #find-dialog::backdrop, #toolchains-dialog::backdrop { background: rgb(0 0 0 / 0.5); }
+#sync-dialog h3, #find-dialog h3, #toolchains-dialog h3 { margin: 0 0 8px; }
 #sync-dialog label, #find-dialog label { display: grid; grid-template-columns: 8em 1fr; align-items: center; margin: 6px 0; }
-#sync-dialog input, #find-dialog input {
+#sync-dialog input, #find-dialog input, #toolchains-dialog input {
   font: inherit; color: var(--text); background: var(--bg);
   border: 1px solid var(--border); border-radius: 4px; padding: 4px 6px;
 }
-#sync-dialog .hint { color: var(--muted); font-size: 13px; margin: 6px 0; }
-#sync-dialog .buttons, #find-dialog .buttons { display: flex; gap: 8px; justify-content: flex-end; }
+#sync-dialog .hint, #toolchains-dialog .hint { color: var(--muted); font-size: 13px; margin: 6px 0; }
+#sync-dialog .buttons, #find-dialog .buttons, #toolchains-dialog .buttons { display: flex; gap: 8px; justify-content: flex-end; }
 #sync-status { min-height: 1.2em; }
 #sync-status a { color: #7cc4ff; }
 button.link { border: 0; background: none; padding: 0; color: #7cc4ff; text-decoration: underline; font-size: inherit; }
@@ -155,3 +155,10 @@ button.link { border: 0; background: none; padding: 0; color: #7cc4ff; text-deco
 }
 #find-results li:hover { background: var(--bg); }
 #find-results mark { background: var(--warn); color: #000; border-radius: 2px; }
+
+#toolchains-dialog .pack { border-top: 1px solid var(--border); padding: 8px 0; }
+#toolchains-dialog .pack h4 { margin: 0; display: flex; justify-content: space-between; align-items: center; gap: 8px; }
+#toolchains-dialog .packages { display: flex; flex-wrap: wrap; gap: 4px; margin: 6px 0; }
+#toolchains-dialog .packages span { border: 1px solid var(--border); border-radius: 4px; padding: 1px 6px; font-size: 13px; }
+#toolchains-dialog .add { display: flex; gap: 6px; }
+#toolchains-dialog .add input { flex: 1; }

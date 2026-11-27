@@ -77,8 +77,9 @@ export const renameFile = (project, from, to, content) => tx(["project-files"], 
 export const getSetting = (key) => tx(["settings"], "readonly", (s) => s.get(key));
 export const setSetting = (key, value) => tx(["settings"], "readwrite", (s) => s.put(value, key));
 
-/** Is `name` acceptable for a file: a path of Rust module names (folders,
- *  then the file) ending in .rs, so that `mod name;` can refer to it. */
+/** Is `name` acceptable for a file: a path of module names (folders, then
+ *  the file) ending in .rs or .py, so that `mod name;` or `import name` can
+ *  refer to it. */
 export function validName(name) {
-  return /^(?:[A-Za-z_][A-Za-z0-9_]*\/)*[A-Za-z_][A-Za-z0-9_]*\.rs$/.test(name);
+  return /^(?:[A-Za-z_][A-Za-z0-9_]*\/)*[A-Za-z_][A-Za-z0-9_]*\.(?:rs|py)$/.test(name);
 }

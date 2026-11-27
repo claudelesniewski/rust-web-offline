@@ -147,7 +147,7 @@ service worker (sw.js): precache everything, serve from cache (docs from
 - **Projects and files.** IndexedDB (`web/store.js`): projects, and their
   files keyed by project and path; saved 400 ms after each edit and when the
   page is hidden. A path is Rust module names separated by `/`, ending in
-  `.rs` (`geometry/mod.rs`), so files are modules in folders as Cargo would
+  `.rs` (`geometry/mod.rs`) or `.py`, so files are modules in folders as Cargo would
   have them; Run writes them all into `src/` and compiles the open one as
   the crate root. Version 1 of the database had one set of files: upgrading
   copies them into a project named "My project", and keeps the old store as
@@ -165,12 +165,34 @@ service worker (sw.js): precache everything, serve from cache (docs from
   first if there are changes not pushed. What was last synced (commit and
   files) is kept per project, to tell changes here from changes there.
 
+- **Optional toolchains ("packs").** Toolchains that not everyone wants are
+  installed from the Toolchains dialog, not precached: `web/packs.json`
+  pins each pack's files by SHA-256, and `web/packs.js` downloads them,
+  checks them and puts them in a cache of their own ("packs"), under
+  `packs/<id>/<file>`. `sw.js` keeps that cache across versions, as the AI
+  model's, and serves it offline like the rest of the site, so a pack's code
+  loads its files from those same-origin paths. The one pack so far is
+  Python, Pyodide's core files (CPython and its standard library, 13 MB).
+  Its packages come from Pyodide's lock file (`pyodide-lock.json`), which
+  names each one's file, SHA-256 and dependencies; installing one fetches
+  those too, from the same CDN. Separate builds of the site per language
+  were the alternative; one site with packs keeps the projects, editor and
+  settings in one place.
+- **Running Python.** `web/python-worker.js` loads Pyodide from the pack,
+  writes the project's files to `/src` and runs the open file with `runpy`,
+  importing the installed packages it imports first. `input()` blocks the
+  worker on a SharedArrayBuffer (`Atomics.wait`) until the terminal sends a
+  line, as Rust programs' stdin does. Stop terminates the worker; the next
+  run starts a new one.
+
 ## Limits
 
 - About 74 MB is cached (60 MB toolchain, 14 MB docs); the first visit
   downloads all of it.
 - Memory: rustc reserves up to 1 GiB of address space (512 MiB on devices
   reporting under 4 GB of RAM). Very large programs may run out.
+- Python: only packages that Pyodide builds for WebAssembly (no PyTorch, for
+  one); no completion, docs or clickable tracebacks yet.
 - Standard library only; one crate per run; programs are wasm, so no
   processes, networking or real filesystem.
 - The toolchain is a nightly using the Cranelift backend. Its author reports

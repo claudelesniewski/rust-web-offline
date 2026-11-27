@@ -14,7 +14,9 @@
 # static.rust-lang.org (MIT/Apache-2.0; the Book and Reference are
 # MIT/Apache-2.0 too). scripts/pack-docs.mjs picks what is served offline.
 # Test model: a 1 MB llama.cpp test model (MIT), which tests/e2e.mjs uses in
-# place of the real one to test AI suggestions.
+# place of the real one to test AI suggestions. Test Pyodide: the Python
+# pack's files (as in web/packs.json) and a small package, which tests/e2e.mjs
+# serves in place of the CDN.
 #
 # Mirror: these files are also published as a release of this repository,
 # named after a hash of the pins below, by .github/workflows/mirror.yml, so
@@ -33,6 +35,7 @@ COMMIT=47377dd2ff6b725548e7847e7bd9a37efeed2c96
 NIGHTLY=2026-10-19
 BASE="https://raw.githubusercontent.com/ryancbuckley/rust-playground-inbrowser-site/$COMMIT"
 DOCS="https://static.rust-lang.org/dist/$NIGHTLY/rust-docs-nightly-x86_64-unknown-linux-gnu.tar.xz"
+PYODIDE="https://cdn.jsdelivr.net/pyodide/v314.0.8/full"
 TEST_MODEL="https://huggingface.co/ggml-org/models-moved/resolve/499bc8821c6b12b4e53c5bffcb21ec206f212d81/tinyllamas/stories260K.gguf"
 # sha256, path under build/cache/toolchain, and URL if not $BASE/path.
 PINS="
@@ -46,6 +49,12 @@ ad25ce898e25bf67229d78981278f61b0a0dbb29964c946f46d0fb35632ce3c0  browser-kernel
 62c7a1e35f56406896d7aa7ca52d0cc0d272ac022b5d2796e7d6905db8a3636a  browser-kernel/LICENSE
 496eb961421f63cf451b850b6f1a0c23acb0fea296a89a79ea197eac50b77457  rust-docs.tar.xz  $DOCS
 270cba1bd5109f42d03350f60406024560464db173c0e387d91f0426d3bd256d  test/stories260K.gguf  $TEST_MODEL
+1bb8cc14f9405aaa7cd4e00c12edd0a8539de9cc026618d6ee5a9663f367dc70  test/pyodide/pyodide.mjs  $PYODIDE/pyodide.mjs
+22514b8be6980e28a02c8b1d6387ce8dfe666fc4edf8d547cff5dce29ff4d972  test/pyodide/pyodide.asm.mjs  $PYODIDE/pyodide.asm.mjs
+e14d49ceca9b4a0e274ea918f3a898de2d3880b6e5573a6cfe1a2267ecc70329  test/pyodide/pyodide.asm.wasm  $PYODIDE/pyodide.asm.wasm
+2bd3394a145bfbbe5bbc9d9d6ab9136abbb986c6fef6c142b3a2962227aa5c28  test/pyodide/python_stdlib.zip  $PYODIDE/python_stdlib.zip
+5dc2fc119108bc148c7457dc86e7675b5c87e1cafd420b9c34c1eaef7b36c010  test/pyodide/pyodide-lock.json  $PYODIDE/pyodide-lock.json
+6541523b4b16c1953d2fc9b82fb86c540eea9f78fca329ab371ed13a8b0faa51  test/pyodide/annotated_types-0.7.0-py3-none-any.whl  $PYODIDE/annotated_types-0.7.0-py3-none-any.whl
 "
 
 TAG="toolchain-$(printf '%s' "$PINS" | sha256sum | cut -c1-12)"

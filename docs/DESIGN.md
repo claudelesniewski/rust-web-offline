@@ -20,7 +20,11 @@ and includes rustfmt. Its crates.io support (124 MB) is left out.
 
 `scripts/fetch-toolchain.sh` downloads its files from one pinned commit of
 the published site, checked against pinned SHA-256 hashes. Nothing binary is
-committed here.
+committed here. That project replaces its site's history on every deploy,
+so the commit may one day be gone: `.github/workflows/mirror.yml` publishes
+the same files as a release of this repository (`toolchain-<hash of the
+pins>`), and the script tries that release first. Whichever it comes from,
+a file must match its pinned hash.
 
 ## Hosting and cross-origin isolation
 

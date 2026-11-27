@@ -16,8 +16,17 @@
 # Test model: a 1 MB llama.cpp test model (MIT), which tests/e2e.mjs uses in
 # place of the real one to test AI suggestions.
 #
+# Mirror: these files are also published as a release of this repository,
+# named after a hash of the pins below, by .github/workflows/mirror.yml, so
+# that builds don't depend on the upstream commit staying reachable. Files
+# come from the mirror if it has them, else from upstream; either way, they
+# must match their pinned SHA-256.
+#
 # To update: change COMMIT or NIGHTLY, run with UPDATE_PINS=1 to print the new hashes,
 # and paste them below.
+#
+# With STAGE=<dir>, also puts the files in <dir>/assets, named for the
+# release, and the release's tag in <dir>/TAG (for mirror.yml).
 set -euo pipefail
 
 COMMIT=47377dd2ff6b725548e7847e7bd9a37efeed2c96
@@ -39,16 +48,36 @@ ad25ce898e25bf67229d78981278f61b0a0dbb29964c946f46d0fb35632ce3c0  browser-kernel
 270cba1bd5109f42d03350f60406024560464db173c0e387d91f0426d3bd256d  test/stories260K.gguf  $TEST_MODEL
 "
 
+TAG="toolchain-$(printf '%s' "$PINS" | sha256sum | cut -c1-12)"
+MIRROR="https://github.com/${MIRROR_REPO:-claudelesniewski/rust-web-offline}/releases/download/$TAG"
+# A release's files have no folders: dist/rustc.wasm.gz is dist_rustc.wasm.gz.
+asset() { echo "${1//\//_}"; }
+
+[ -z "${STAGE:-}" ] || STAGE="$(realpath -m "$STAGE")"
 OUT="$(cd "$(dirname "$0")/.." && pwd)/build/cache/toolchain"
 mkdir -p "$OUT"
 cd "$OUT"
 while read -r sha path url; do
   [ -n "$path" ] || continue
-  if [ -f "$path" ] && echo "$sha  $path" | sha256sum -c --status; then continue; fi
+  ok() { echo "$sha  $path" | sha256sum -c --status; }
+  if [ -f "$path" ] && ok; then continue; fi
   mkdir -p "$(dirname "$path")"
   echo "fetching $path"
-  curl -fsSL --retry 4 -o "$path.part" "${url:-$BASE/$path}"
-  mv -f "$path.part" "$path"
+  for from in "$MIRROR/$(asset "$path")" "${url:-$BASE/$path}"; do
+    if curl -fsSL --retry 4 -o "$path.part" "$from" 2>/dev/null; then
+      mv -f "$path.part" "$path"
+      if [ -n "${UPDATE_PINS:-}" ] || ok; then break; fi
+      echo "  checksum mismatch from $from" >&2
+    fi
+  done
   if [ -n "${UPDATE_PINS:-}" ]; then sha256sum "$path"; continue; fi
-  echo "$sha  $path" | sha256sum -c --quiet || { echo "checksum mismatch: $path" >&2; exit 1; }
+  ok || { echo "could not fetch $path with its pinned checksum" >&2; exit 1; }
 done <<< "$PINS"
+
+if [ -n "${STAGE:-}" ]; then
+  mkdir -p "$STAGE/assets"
+  while read -r sha path url; do
+    [ -n "$path" ] && cp "$path" "$STAGE/assets/$(asset "$path")"
+  done <<< "$PINS"
+  echo "$TAG" > "$STAGE/TAG"
+fi

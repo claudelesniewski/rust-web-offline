@@ -12,6 +12,11 @@ library run as WebAssembly on your machine; nothing is sent to a server.
   (IndexedDB). Other files are modules, in folders too: `mod foo;` uses
   `foo.rs` or `foo/mod.rs`. Import `.rs` files; export one file or a whole
   project as a `.zip`.
+- Sync a project with a GitHub repository (project menu → **GitHub…**): push
+  its files to `src/` there, as a Cargo package, or pull them back. It needs
+  a fine-grained personal access token for that repository with **Contents:
+  read and write** (github.com → Settings → Developer settings → Personal
+  access tokens → Fine-grained tokens), kept in the browser only.
 - Standard library only (no crates.io).
 - Type-aware completion after `.` (on by default, in **Options**): the
   compiler finds the type, and the offline docs list its methods.

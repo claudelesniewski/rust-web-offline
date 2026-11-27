@@ -153,6 +153,18 @@ service worker (sw.js): precache everything, serve from cache (docs from
   copies them into a project named "My project", and keeps the old store as
   it was, as a backup.
 
+- **GitHub sync.** `web/github.js` talks to GitHub's Git Data API, which
+  allows calls from web pages; it authenticates with a personal access
+  token, as GitHub's sign-in flows need a server (or a token endpoint that
+  allows web pages, which GitHub's doesn't). `web/sync.js`: a project is the
+  `.rs` files under `src/` in a folder of a branch. Push makes one commit
+  of the changed and deleted files on top of the branch's head, adding a
+  `Cargo.toml` if there is none, and leaves all else as it was; it refuses
+  if the branch moved since the last sync (or, before the first, has files
+  there already): pull first. Pull replaces the project's files, asking
+  first if there are changes not pushed. What was last synced (commit and
+  files) is kept per project, to tell changes here from changes there.
+
 ## Limits
 
 - About 74 MB is cached (60 MB toolchain, 14 MB docs); the first visit

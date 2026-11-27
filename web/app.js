@@ -8,6 +8,8 @@ import * as store from "./store.js";
 import * as lm from "./lm.js";
 import { createTypeCompletion } from "./types.js";
 import { createSuggester } from "./suggest.js";
+import { createGitHub } from "./github.js";
+import * as sync from "./sync.js";
 
 const $ = (id) => document.getElementById(id);
 const setStatus = (text) => { $("status").textContent = text; };
@@ -221,6 +223,109 @@ async function loadProjects() {
   }
   const last = await store.getSetting("project");
   await openProject(projects.has(last) ? last : [...projects.keys()][0]);
+}
+
+// ---- GitHub sync -----------------------------------------------------------
+
+const linkKey = () => `github:${project}`;
+const short = (sha) => sha.slice(0, 7);
+
+function syncStatus(text, href) {
+  const el = $("sync-status");
+  el.textContent = text;
+  if (href) {
+    const a = document.createElement("a");
+    a.href = href;
+    a.target = "_blank";
+    a.textContent = "See it on GitHub";
+    el.append(" ", a);
+  }
+}
+
+async function openSync() {
+  $("project-menu").open = false;
+  const link = (await store.getSetting(linkKey())) ?? {};
+  $("sync-repo").value = link.repo ?? "";
+  $("sync-branch").value = link.branch ?? "main";
+  $("sync-dir").value = link.dir ?? "";
+  $("sync-token").value = "";
+  $("sync-token").placeholder = (await store.getSetting("github-token")) ? "(saved: leave empty to keep it)" : "github_pat_…";
+  syncStatus(link.head
+    ? `Last synced with ${link.repo} at commit ${short(link.head)}; ` +
+      (sync.changedSince(files, link.snapshot) ? "changed here since." : "no changes here since.")
+    : "Not synced yet.");
+  $("sync-dialog").showModal();
+}
+
+/** Run `fn(gh, link)` with the dialog's settings, saving them; reports errors. */
+async function withGitHub(fn) {
+  flushSaves();
+  const repo = $("sync-repo").value.trim().replace(/^https:\/\/github\.com\//, "").replace(/\.git$|\/$/g, "");
+  if (!/^[\w.-]+\/[\w.-]+$/.test(repo)) return syncStatus("The repository is owner/name, as in octocat/hello.");
+  const token = $("sync-token").value.trim() || (await store.getSetting("github-token"));
+  if (!token) return syncStatus("A token is needed: see below.");
+  await store.setSetting("github-token", token);
+  const old = (await store.getSetting(linkKey())) ?? {};
+  const link = { repo, branch: $("sync-branch").value.trim() || "main", dir: $("sync-dir").value.trim() };
+  // The same place as before: keep what was synced.
+  if (old.repo === link.repo && old.branch === link.branch && old.dir === link.dir) Object.assign(link, old);
+  await store.setSetting(linkKey(), link);
+  const buttons = [$("sync-pull"), $("sync-push")];
+  buttons.forEach((b) => (b.disabled = true));
+  try {
+    await fn(createGitHub({ token, repo }), link);
+  } catch (e) {
+    syncStatus(e.message);
+  } finally {
+    buttons.forEach((b) => (b.disabled = false));
+  }
+}
+
+/** Make the project's files `next` ({ name: content }). */
+async function replaceFiles(next) {
+  for (const timer of saveTimers.values()) clearTimeout(timer);
+  saveTimers.clear();
+  for (const name of files.keys()) {
+    editor.forget(name);
+    if (!(name in next)) await store.deleteFile(project, name);
+  }
+  files.clear();
+  active = null;
+  for (const [name, content] of Object.entries(next)) {
+    files.set(name, content);
+    await store.putFile(project, name, content);
+  }
+  openFile(files.has("main.rs") ? "main.rs" : [...files.keys()].sort()[0]);
+}
+
+function setupSync() {
+  $("github-project").onclick = openSync;
+  $("sync-close").onclick = () => $("sync-dialog").close();
+  $("sync-forget").onclick = async () => {
+    await store.setSetting("github-token", "");
+    $("sync-token").placeholder = "github_pat_…";
+    syncStatus("The token is forgotten.");
+  };
+  $("sync-pull").onclick = () => withGitHub(async (gh, link) => {
+    const changed = link.head ? sync.changedSince(files, link.snapshot) : true;
+    if (changed && !confirm(`Pulling replaces this project's files with those in ${link.repo}` +
+      (link.head ? ", and you have changes here not pushed." : ".") + " Pull?")) return;
+    syncStatus("Pulling…");
+    const { head, files: remote } = await sync.pull(gh, link);
+    const count = Object.keys(remote).length;
+    if (!count) return syncStatus(`There are no .rs files in ${sync.paths(link.dir).src} there.`);
+    await replaceFiles(remote);
+    await store.setSetting(linkKey(), { ...link, head, snapshot: remote });
+    syncStatus(`Pulled ${count} file${count === 1 ? "" : "s"} from commit ${short(head)}.`);
+  });
+  $("sync-push").onclick = () => withGitHub(async (gh, link) => {
+    syncStatus("Pushing…");
+    const message = $("sync-message").value.trim() || "Update from Rust Offline";
+    const head = await sync.push(gh, link, files, { message, project: projects.get(project) });
+    await store.setSetting(linkKey(), { ...link, head, snapshot: Object.fromEntries(files) });
+    syncStatus(head === link.head ? "Nothing to push: GitHub has the same files."
+      : `Pushed as commit ${short(head)}.`, `https://github.com/${link.repo}/commit/${head}`);
+  });
 }
 
 function setupProjectActions() {
@@ -516,6 +621,7 @@ $("stop").onclick = stop;
 $("format").onclick = format;
 setupFileActions();
 setupProjectActions();
+setupSync();
 loadProjects().catch((e) => setStatus(`Could not load your files: ${e}`));
 setupServiceWorker().catch((e) => showOffline("", `Offline: unavailable (${e.message})`));
 requestPersistence();

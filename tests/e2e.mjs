@@ -8,6 +8,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { chromium } from "playwright";
 import { serve, PREFIX } from "./serve.mjs";
+import { createFakeGitHub } from "./fake-github.mjs";
 
 // A copy of the site, so that a new version can be deployed mid-test.
 const site = mkdtempSync(join(tmpdir(), "rust-offline-site-"));
@@ -291,6 +292,64 @@ try {
     page.once("dialog", (d) => d.accept());
     await page.locator("#delete-project").click();
     await page.waitForFunction(() => ![...document.querySelector("#project").options].some((o) => o.text === "Third"));
+    await page.locator("#project").selectOption({ label: "My project" });
+    await page.locator('#file-list li[data-name="shapes.rs"]').waitFor();
+  });
+
+  await step("sync a project with GitHub", async () => {
+    // GitHub's API, played by a fake, CORS and all.
+    const github = createFakeGitHub("me/code");
+    github.commitFiles({ "README.md": "# Code\n" });
+    const cors = { "Access-Control-Allow-Origin": "*", "Access-Control-Allow-Headers": "*", "Access-Control-Allow-Methods": "*" };
+    await context.route("https://api.github.com/**", async (route) => {
+      const req = route.request();
+      if (req.method() === "OPTIONS") return route.fulfill({ status: 204, headers: cors });
+      const { status, json } = github.handle(req.method(), req.url(), req.postDataJSON());
+      return route.fulfill({ status, headers: cors, json });
+    });
+    await page.locator("#project-menu summary").click();
+    page.once("dialog", (d) => d.accept("Synced"));
+    await page.locator("#new-project").click();
+    await page.waitForFunction(() => document.querySelector("#project").selectedOptions[0]?.text === "Synced");
+
+    const dialog = async () => {
+      await page.locator("#project-menu summary").click();
+      await page.locator("#github-project").click();
+    };
+    await dialog();
+    await page.locator("#sync-repo").fill("me/code");
+    await page.locator("#sync-token").fill("github_pat_test");
+    await page.locator("#sync-push").click();
+    await page.locator("#sync-status", { hasText: "Pushed as commit" }).waitFor();
+    assert.deepEqual(Object.keys(github.files()).sort(), ["Cargo.toml", "README.md", "src/main.rs"]);
+    assert.match(github.files()["Cargo.toml"], /^name = "synced"$/m);
+
+    // Changed on GitHub: pull it, and run it.
+    github.commitFiles({ "src/main.rs": 'fn main() { println!("from GitHub"); }\n', "src/extra.rs": "pub fn e() {}\n" });
+    await page.locator("#sync-pull").click();
+    await page.locator("#sync-status", { hasText: "Pulled 2 files" }).waitFor();
+    await page.locator("#sync-close").click();
+    assert.deepEqual(await page.locator("#file-list li").allInnerTexts(), ["extra.rs", "main.rs"]);
+    assert.match(await run(), /^from GitHub$/m);
+
+    // Changed here: push it, as a second commit; the token was kept.
+    await setCode("main.rs", 'fn main() { println!("from here"); }\n');
+    await dialog();
+    assert.equal(await page.locator("#sync-repo").inputValue(), "me/code");
+    await page.locator("#sync-message").fill("Say where from");
+    await page.locator("#sync-push").click();
+    await page.locator("#sync-status", { hasText: "Pushed as commit" }).waitFor();
+    assert.equal(github.files()["src/main.rs"], 'fn main() { println!("from here"); }\n');
+
+    // Changed in both places: pushing is refused.
+    github.commitFiles({ "README.md": "# Changed\n" });
+    await page.locator("#sync-close").click();
+    await setCode("main.rs", "fn main() {}\n");
+    await dialog();
+    await page.locator("#sync-push").click();
+    await page.locator("#sync-status", { hasText: "pull first" }).waitFor();
+    await page.locator("#sync-close").click();
+    await context.unroute("https://api.github.com/**");
     await page.locator("#project").selectOption({ label: "My project" });
     await page.locator('#file-list li[data-name="shapes.rs"]').waitFor();
   });

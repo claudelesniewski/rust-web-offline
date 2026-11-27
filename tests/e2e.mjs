@@ -250,6 +250,39 @@ try {
     assert.match(await page.locator(".cm-content").innerText(), /pub fn double\(x: i32\) -> i32 \{\n\s+x \* 2\n\}/);
   });
 
+  await step("Vim key bindings", async () => {
+    await setCode("main.rs", "let a = 1;\nlet b = 2;\nlet c = 3;\n");
+    const vimOption = async (on) => {
+      await page.locator("#options summary").click();
+      await page.locator("#vim").setChecked(on);
+      await page.locator("#options summary").click();
+    };
+    await vimOption(true);
+    const text = () => page.evaluate(() => [...document.querySelectorAll(".cm-line")].map((l) => l.textContent).join("\n"));
+    await page.locator(".cm-content").click();
+    await page.keyboard.press("Escape");
+    await page.keyboard.type("ggdd");
+    assert.equal(await text(), "let b = 2;\nlet c = 3;\n");
+    await page.keyboard.type("u");
+    assert.equal(await text(), "let a = 1;\nlet b = 2;\nlet c = 3;\n");
+    await page.keyboard.type("Gcclet d = 4;");
+    await page.locator(".cm-vim-panel", { hasText: "INSERT" }).waitFor();
+    await page.keyboard.press("Escape");
+    assert.equal(await text(), "let a = 1;\nlet b = 2;\nlet c = 3;\nlet d = 4;");
+    // :w saves at once.
+    await page.keyboard.type(":w");
+    await page.keyboard.press("Enter");
+    const saved = await page.evaluate(() => new Promise((resolve) => {
+      indexedDB.open("rust-offline").onsuccess = (e) => {
+        e.target.result.transaction("project-files").objectStore("project-files").get(["default", "main.rs"])
+          .onsuccess = (g) => resolve(g.target.result.content);
+      };
+    }));
+    assert.equal(saved, "let a = 1;\nlet b = 2;\nlet c = 3;\nlet d = 4;");
+    await vimOption(false);
+    assert.equal(await page.locator(".cm-vim-panel").count(), 0);
+  });
+
   await step("stop a program that never ends", async () => {
     await setCode("main.rs", "fn main() { let mut n = 0u64; loop { n = n.wrapping_add(1); } }\n");
     await page.locator("#run:not([disabled])").click();

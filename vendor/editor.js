@@ -1,6 +1,6 @@
 // CodeMirror 6 with Rust highlighting, bundled by scripts/build.sh into editor.js.
 import { basicSetup } from "codemirror";
-import { EditorState } from "@codemirror/state";
+import { Compartment, EditorState } from "@codemirror/state";
 import { EditorView, keymap, tooltips } from "@codemirror/view";
 import { indentLess, indentMore } from "@codemirror/commands";
 import { indentUnit } from "@codemirror/language";
@@ -9,6 +9,11 @@ import { rust, rustLanguage } from "@codemirror/lang-rust";
 import { oneDark } from "@codemirror/theme-one-dark";
 import { rustCompletions } from "./completion.js";
 import { acceptGhost, dropGhost, ghostText } from "./ghost.js";
+import { Vim, vim } from "@replit/codemirror-vim";
+
+/** Each editor's view -> what Vim's :w does in it. */
+const savers = new WeakMap();
+Vim.defineEx("write", "w", (cm) => savers.get(cm.cm6)?.());
 
 /** Tab accepts a completion from the list, or else the AI's suggestion, or
  *  asks for a completion after a word, `.` or `::`; otherwise it indents.
@@ -30,13 +35,19 @@ const tab = {
 };
 
 /** An editor in `parent`. `onChange(text)` follows every edit; `keys` are
- *  extra bindings, as in CodeMirror's keymap ({ key, run }). Each file gets
- *  its own state (and undo history) via `open(name, text)`. */
-export function createEditor(parent, { onChange, keys = [] }) {
+ *  extra bindings, as in CodeMirror's keymap ({ key, run }); `onSave` is
+ *  called on Vim's :w. Each file gets its own state (and undo history) via
+ *  `open(name, text)`. */
+export function createEditor(parent, { onChange, keys = [], onSave = () => {} }) {
   const states = new Map();
   let suggest = null;
   let typeMethods = null;
-  const extensions = [
+  // Vim key bindings, when on: first, so that they come before the others.
+  const vimMode = new Compartment();
+  let vimOn = false;
+  const vimExtension = () => (vimOn ? vim({ status: true }) : []);
+  const extensions = () => [
+    vimMode.of(vimExtension()),
     keymap.of([...keys, tab, { key: "Escape", run: dropGhost }]),
     ghostText(() => suggest),
     // Completion lists and their docs may reach beyond the editor's pane.
@@ -52,10 +63,11 @@ export function createEditor(parent, { onChange, keys = [] }) {
     EditorView.updateListener.of((u) => { if (u.docChanged) onChange(u.state.doc.toString()); }),
   ];
   const view = new EditorView({ parent });
+  savers.set(view, onSave);
   return {
     /** Show file `name`, creating its state from `text` the first time. */
     open(name, text) {
-      if (!states.has(name)) states.set(name, EditorState.create({ doc: text, extensions }));
+      if (!states.has(name)) states.set(name, EditorState.create({ doc: text, extensions: extensions() }));
       view.setState(states.get(name));
       view.focus();
     },
@@ -80,5 +92,12 @@ export function createEditor(parent, { onChange, keys = [] }) {
     /** Turn type-aware completion on with `fn(doc, from, to)`, which returns
      *  the options after a dot (or null), or off with null. */
     setTypeMethods(fn) { typeMethods = fn; },
+    /** Turn Vim key bindings on or off, in every file. */
+    setVim(on) {
+      vimOn = on;
+      const effects = vimMode.reconfigure(vimExtension());
+      for (const [name, state] of states) states.set(name, state.update({ effects }).state);
+      view.dispatch({ effects });
+    },
   };
 }

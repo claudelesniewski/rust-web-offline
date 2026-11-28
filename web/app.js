@@ -14,6 +14,7 @@ import { createGitHub } from "./github.js";
 import * as sync from "./sync.js";
 import { initLayout } from "./layout.js";
 import { find, replaceAll } from "./find.js";
+import { renameError, renameIn } from "./rename.js";
 import * as packs from "./packs.js";
 import { LANGUAGES, findLocations, languageOf, validName, withExtension } from "./languages.js";
 import { parseTraceback } from "./traceback.js";
@@ -128,7 +129,34 @@ const editor = createEditor($("editor"), {
     if (at) gotoLocation(at.file, at.line, at.col);
     else setStatus(`No definition of ${word} found`);
   },
+  onRename(word) {
+    const language = languageOf(active);
+    const to = prompt(`Rename ${word} in all ${language.name} files to:`, word)?.trim();
+    if (!to || to === word) return;
+    const error = renameError(word, to, language.id);
+    if (error) return setStatus(error);
+    const changed = new Map();
+    let count = 0;
+    for (const [name, content] of files) {
+      if (languageOf(name) !== language) continue;
+      const renamed = renameIn(content, word, to, language.id);
+      if (renamed.count) changed.set(name, renamed.text);
+      count += renamed.count;
+    }
+    applyEdits(changed);
+    setStatus(`Renamed ${count} ${count === 1 ? "use" : "uses"} of ${word} in ${changed.size} ${changed.size === 1 ? "file" : "files"}`);
+  },
 });
+
+/** Replace the content of the files in `changed` (name -> content), each
+ *  as one undoable edit. */
+function applyEdits(changed) {
+  for (const [name, content] of changed) {
+    files.set(name, content);
+    editor.replace(content, name);
+    save(name);
+  }
+}
 
 /** Open `file` (if it exists) with the cursor at `line` and `col`. */
 function gotoLocation(file, line, col) {
@@ -525,12 +553,7 @@ function setupFind() {
     const query = $("find-query").value;
     const count = find(files, query, findOptions()).length;
     if (!count || !confirm(`Replace ${count} ${count === 1 ? "match" : "matches"} of "${query}" in all files?`)) return;
-    for (const [name, content] of replaceAll(files, query, $("find-replacement").value, findOptions())) {
-      files.set(name, content);
-      if (name === active) editor.replace(content);
-      else editor.forget(name);
-      save(name);
-    }
+    applyEdits(replaceAll(files, query, $("find-replacement").value, findOptions()));
     renderFind();
   };
 }

@@ -184,6 +184,29 @@ try {
     await setCode("main.rs", 'mod geometry;\nfn main() { println!("{}", geometry::double(21)); }\n');
   });
 
+  await step("F2 renames a name in all files, not in strings, each file undoably", async () => {
+    await setCode("main.rs", 'mod geometry;\nfn main() { println!("double: {}", geometry::double(21)); }\n');
+    // Into `double`, from the end of `geometry::double(21)); }`.
+    await page.keyboard.press("ArrowUp");
+    await page.keyboard.press("End");
+    for (let i = 0; i < 10; i++) await page.keyboard.press("ArrowLeft");
+    const asked = new Promise((resolve) => page.once("dialog", (d) => { resolve(d.message()); d.accept("twice"); }));
+    await page.keyboard.press("F2");
+    assert.equal(await asked, "Rename double in all Rust files to:");
+    await page.locator("#status", { hasText: "Renamed 2 uses of double in 2 files" }).waitFor();
+    assert.match(await page.locator(".cm-content").innerText(), /println!\("double: \{\}", geometry::twice\(21\)\)/);
+    assert.match(await run(), /^double: 42$/m);
+    await page.locator(".cm-content").click();
+    await page.keyboard.press("ControlOrMeta+z");
+    assert.match(await page.locator(".cm-content").innerText(), /"double: \{\}", geometry::double\(21\)/);
+    await page.locator('#file-list li[data-name="geometry.rs"]').click();
+    assert.match(await page.locator(".cm-content").innerText(), /^pub fn twice\(/);
+    await page.locator(".cm-content").click();
+    await page.keyboard.press("ControlOrMeta+z");
+    assert.match(await page.locator(".cm-content").innerText(), /^pub fn double\(/);
+    await setCode("main.rs", 'mod geometry;\nfn main() { println!("{}", geometry::double(21)); }\n');
+  });
+
   await step("hover docs for Rust: a type's from the offline docs, a method's after a dot", async () => {
     await setCode("main.rs", "fn main() {\n    let mut v: Vec<i32> = Vec::new();\n    v.push(1);\n}\n");
     const hoverOn = async (word, nth = 0) => {

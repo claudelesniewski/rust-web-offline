@@ -10,8 +10,8 @@ const CACHE = "lm"; // the name sw.js keeps
  *  of that kind: the project's other files, then the open file up to the
  *  cursor. Measured on 26 lines of Rust, 8 of them unlike any example the
  *  model was shown before: as good as a preamble of idiomatic Rust (9 or 10
- *  right), better on those 8 (3 against 1), and 30% faster. */
-const REPO = "<repo_name>rust-examples";
+ *  right), better on those 8 (3 against 1), and 30% faster. The repository's
+ *  name and paths are the language's (web/languages.js). */
 /** How much of the other files the model sees, in characters. */
 const OTHERS = 2000;
 /** How much of the code before the cursor the model sees, in characters. */
@@ -76,26 +76,29 @@ export async function loadModel(onProgress) {
   await wllama.loadModel([model], { n_ctx: 2048, n_gpu_layers: 0 });
 
   return {
-    /** The likeliest continuation of the line `prefix` (of file `file`)
-     *  ends in, or ""; `grammar` (GBNF) constrains it. `others` are the
-     *  project's other files ([{ name, content }]), for context. */
-    async complete(prefix, signal, { grammar, file = "main.rs", others = [] } = {}) {
+    /** The likeliest continuation of the line `prefix` (of file `file`, a
+     *  path in repository `repo`) ends in, or ""; `grammar` (GBNF)
+     *  constrains it. `others` are the project's other files ([{ name (a
+     *  path), content }]), for context. */
+    async complete(prefix, signal, { grammar, repo = "rust-examples", file = "src/main.rs", others = [] } = {}) {
       // A space at the end tokenizes badly (words' tokens start with one):
       // let the model write it instead. Measured on 18 lines: dropping all
       // the indentation instead made the model start new items (4 right,
       // against 7); keeping it all, 6.
       const typed = prefix.endsWith(" ") ? " " : "";
-      let prompt = REPO;
+      let prompt = `<repo_name>${repo}`;
       let room = OTHERS;
       for (const other of others) {
         if (room <= 0) break;
-        prompt += `<file_sep>src/${other.name}\n${other.content.slice(0, room)}`;
+        prompt += `<file_sep>${other.name}\n${other.content.slice(0, room)}`;
         room -= other.content.length;
       }
-      prompt += `<file_sep>src/${file}\n${prefix.slice(-CONTEXT, prefix.length - typed.length)}`;
+      prompt += `<file_sep>${file}\n${prefix.slice(-CONTEXT, prefix.length - typed.length)}`;
       const r = await wllama.createCompletion({
         prompt,
-        max_tokens: 32, temperature: 0, grammar, stop: ["\n"], abortSignal: signal,
+        // 48: at 32, a long line was cut before its end, and failed the check
+        // (Python's, on bench/: 22 right in 29, against 21; Rust's the same).
+        max_tokens: 48, temperature: 0, grammar, stop: ["\n"], abortSignal: signal,
       });
       const text = (r.choices[0]?.text ?? "").replace(/\n$/, "");
       return typed ? text.replace(/^[ \t]+/, "") : text;

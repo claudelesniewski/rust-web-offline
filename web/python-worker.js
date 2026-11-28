@@ -4,12 +4,14 @@
 //   { type: "init", stdin }        stdin: a SharedArrayBuffer, see below
 //   { type: "run", id, files, main }
 //   { type: "complete", id, files, name, line, col }  (line from 1, col from 0)
+//   { type: "lint", id, source }
 // Messages to the page:
 //   { type: "status", text }
 //   { type: "output", id, stream: "stdout" | "stderr", text }
 //   { type: "stdin", id }          the program waits for a line of input
 //   { type: "done", id, code, ms }
-//   { type: "completions", id, options }  [{ label, type, detail }], or null
+//   { type: "answer", id, value }  to "complete": [{ label, type, detail }], or
+//                                  null; to "lint": the lines with problems
 //   { type: "error", id?, text }
 // Stdin: the page writes a line's bytes at offset 8 and their length (or
 // -1 for end of input) at [1] of an Int32Array over the buffer, then sets
@@ -68,6 +70,36 @@ def _complete(code, path, line, col):
     script = jedi.Script(code, path=path, project=jedi.Project("${SRC}"))
     return [{"label": c.name, "type": _KINDS.get(c.type, "variable"), "detail": c.description}
             for c in script.complete(line, col)[:200]]
+
+def _problems(code):
+    """The lines (from 1) of \`code\` with a syntax error, or a name that is
+    bound nowhere in it (nor a builtin): a quick check, not a linter's."""
+    import ast, builtins
+    try:
+        tree = ast.parse(code)
+    except SyntaxError as e:
+        return [e.lineno or 0]
+    bound = set(dir(builtins)) | {"__file__", "__builtins__"}
+    for node in ast.walk(tree):
+        if isinstance(node, ast.Name) and not isinstance(node.ctx, ast.Load):
+            bound.add(node.id)
+        elif isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef)):
+            bound.add(node.name)
+        elif isinstance(node, ast.arg):
+            bound.add(node.arg)
+        elif isinstance(node, (ast.Import, ast.ImportFrom)):
+            for alias in node.names:
+                if alias.name == "*":
+                    return []  # anything may be bound
+                bound.add(alias.asname or alias.name.split(".")[0])
+        elif isinstance(node, (ast.Global, ast.Nonlocal)):
+            bound.update(node.names)
+        elif isinstance(node, (ast.ExceptHandler, ast.MatchAs, ast.MatchStar)) and node.name:
+            bound.add(node.name)
+        elif isinstance(node, ast.MatchMapping) and node.rest:
+            bound.add(node.rest)
+    return sorted({n.lineno for n in ast.walk(tree)
+                   if isinstance(n, ast.Name) and isinstance(n.ctx, ast.Load) and n.id not in bound})
 `);
   post({ type: "status", text: "Ready." });
 }
@@ -122,18 +154,21 @@ async function run({ id, files, main }) {
 
 /** Completions at a place in a file of the project, by jedi (a package of
  *  the Python pack); null if it isn't installed. */
-async function complete({ id, files, name, line, col }) {
-  if (!pyodide) await load();
-  let options = null;
+async function complete({ files, name, line, col }) {
   try {
     await pyodide.loadPackage("jedi", { messageCallback: () => {}, errorCallback: () => {} });
     writeFiles(files);
     const code = files.find((f) => f.name === name)?.content ?? "";
-    options = pyodide.globals.get("_complete")(code, `${SRC}/${name}`, line, col).toJs({ dict_converter: Object.fromEntries });
+    return pyodide.globals.get("_complete")(code, `${SRC}/${name}`, line, col).toJs({ dict_converter: Object.fromEntries });
   } catch {
-    // Not installed (offline), or jedi failed: no completions.
+    return null; // not installed (offline), or jedi failed
   }
-  post({ type: "completions", id, options });
+}
+
+/** Answer request `m` with `fn(m)`'s value. */
+async function answer(m, fn) {
+  if (!pyodide) await load();
+  post({ type: "answer", id: m.id, value: await fn(m) });
 }
 
 // One request at a time: each writes the project's files.
@@ -145,6 +180,8 @@ onmessage = ({ data: m }) => {
   } else if (m.type === "run") {
     queue = queue.then(() => run(m)).catch((e) => post({ type: "error", id: m.id, text: String(e?.message ?? e) }));
   } else if (m.type === "complete") {
-    queue = queue.then(() => complete(m));
+    queue = queue.then(() => answer(m, complete));
+  } else if (m.type === "lint") {
+    queue = queue.then(() => answer(m, ({ source }) => pyodide.globals.get("_problems")(source).toJs()));
   }
 };

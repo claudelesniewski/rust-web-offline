@@ -1,0 +1,165 @@
+[
+ {
+  "group": "tune",
+  "code": "fn main() {\n    let mut v: Vec<i32> = Vec::new();\n    for i in 0..10 {\n        v.",
+  "expect": "^push\\(i\\);"
+ },
+ {
+  "group": "tune",
+  "code": "struct Point {\n    x: f64,\n    y: f64,\n}\n\nimpl Point {\n    fn distance(&self, other: &Point) -> f64 {\n        ",
+  "expect": "sqrt"
+ },
+ {
+  "group": "tune",
+  "code": "use std::collections::HashMap;\n\nfn word_count(text: &str) -> HashMap<String, usize> {\n    let mut counts = HashMap::new();\n    for word in text.split_whitespace() {\n        ",
+  "expect": "entry\\(.*\\)\\.or_insert\\(0\\)\\s*\\+=\\s*1"
+ },
+ {
+  "group": "tune",
+  "code": "fn main() {\n    let mut input = String::new();\n    std::io::stdin().",
+  "expect": "^read_line\\(&mut input\\)"
+ },
+ {
+  "group": "tune",
+  "code": "fn fib(n: u64) -> u64 {\n    match n {\n        0 => 0,\n        1 => 1,\n        ",
+  "expect": "^_ => fib\\(n - 1\\) \\+ fib\\(n - 2\\)"
+ },
+ {
+  "group": "tune",
+  "code": "fn main() {\n    let v = vec![1, 2, 3];\n    let total: i32 = v.iter().",
+  "expect": "^sum\\("
+ },
+ {
+  "group": "tune",
+  "code": "fn main() {\n    let name = String::from(\"Ferris\");\n    println!(",
+  "expect": "^\\\"[^\\\"]*\\{\\}[^\\\"]*\\\", name\\);"
+ },
+ {
+  "group": "tune",
+  "code": "struct Point {\n    x: f64,\n    y: f64,\n}\n\nimpl Point {\n    fn new(x: f64, y: f64) -> Self {\n        ",
+  "expect": "^(Point|Self) \\{ x, y \\}"
+ },
+ {
+  "group": "tune",
+  "code": "fn main() {\n    let mut input = String::new();\n    std::io::stdin().read_line(&mut input).unwrap();\n    let n: i32 = input.trim().",
+  "expect": "^parse\\(\\)"
+ },
+ {
+  "group": "tune",
+  "code": "fn main() {\n    let v = vec![\"a\", \"b\"];\n    for (i, x) in v.iter().",
+  "expect": "^enumerate\\(\\)"
+ },
+ {
+  "group": "tune",
+  "code": "use std::collections::HashMap;\n\nfn main() {\n    let mut ages: HashMap<String, u32> = ",
+  "expect": "^HashMap::new\\(\\);"
+ },
+ {
+  "group": "tune",
+  "code": "fn largest(v: &[i32]) -> i32 {\n    let mut max = v[0];\n    for &x in v {\n        if x > max {\n            ",
+  "expect": "^max = x;"
+ },
+ {
+  "group": "tune",
+  "code": "fn main() {\n    let s = String::from(\"hello\");\n    let n = s.",
+  "expect": "^len\\(\\);"
+ },
+ {
+  "group": "tune",
+  "code": "fn main() {\n    let text = \"a b c\";\n    let words: Vec<&str> = text.",
+  "expect": "^split_whitespace\\(\\)\\.collect\\(\\);"
+ },
+ {
+  "group": "tune",
+  "code": "fn main() {\n    let v = vec![3, 1, 2];\n    let mut sorted = v.clone();\n    sorted.",
+  "expect": "^sort"
+ },
+ {
+  "group": "tune",
+  "code": "fn main() {\n    let opt: Option<i32> = Some(3);\n    let x = opt.",
+  "expect": "^unwrap"
+ },
+ {
+  "group": "tune",
+  "code": "fn main() {\n    let s = \"  hi  \";\n    let t = s.",
+  "expect": "^trim\\(\\)"
+ },
+ {
+  "group": "tune",
+  "code": "fn main() {\n    let mut stack = vec![1, 2];\n    let top = stack.",
+  "expect": "^(pop|last)\\(\\)"
+ },
+ {
+  "group": "held-out",
+  "code": "fn main() {\n    let v = vec![1, 2, 3];\n    let mut total = 0;\n    for x in &v {\n        ",
+  "expect": "^total \\+= (\\*)?x;"
+ },
+ {
+  "group": "held-out",
+  "code": "fn is_even(n: i32) -> bool {\n    ",
+  "expect": "^n % 2 == 0"
+ },
+ {
+  "group": "held-out",
+  "code": "fn main() {\n    let v = vec![1, 2, 3];\n    let squares: Vec<i32> = v.iter().",
+  "expect": "^map\\(\\|"
+ },
+ {
+  "group": "held-out",
+  "code": "struct Rectangle {\n    width: u32,\n    height: u32,\n}\n\nimpl Rectangle {\n    fn area(&self) -> u32 {\n        ",
+  "expect": "^self\\.width \\* self\\.height"
+ },
+ {
+  "group": "held-out",
+  "code": "fn main() {\n    let s = String::from(\"hi\");\n    let upper = s.",
+  "expect": "^to_uppercase\\(\\)"
+ },
+ {
+  "group": "held-out",
+  "code": "fn main() {\n    let mut count = 0;\n    while count < 10 {\n        ",
+  "expect": "^count \\+= 1;"
+ },
+ {
+  "group": "held-out",
+  "code": "enum Shape {\n    Circle(f64),\n    Square(f64),\n}\n\nfn area(s: &Shape) -> f64 {\n    match s {\n        ",
+  "expect": "^Shape::(Circle|Square)\\(\\w+\\) =>"
+ },
+ {
+  "group": "held-out",
+  "code": "fn main() {\n    let args: Vec<String> = std::env::args().",
+  "expect": "^collect\\(\\)"
+ },
+ {
+  "group": "multi-file",
+  "code": "mod geometry;\n\nfn main() {\n    let a = geometry::",
+  "expect": "^area\\(",
+  "others": [
+   {
+    "name": "geometry.rs",
+    "content": "pub fn area(width: f64, height: f64) -> f64 {\n    width * height\n}\n"
+   }
+  ]
+ },
+ {
+  "group": "multi-file",
+  "code": "mod shapes;\nuse shapes::Circle;\n\nfn main() {\n    let c = ",
+  "expect": "^Circle::new\\(",
+  "others": [
+   {
+    "name": "shapes.rs",
+    "content": "pub struct Circle {\n    pub radius: f64,\n}\n\nimpl Circle {\n    pub fn new(radius: f64) -> Self {\n        Circle { radius }\n    }\n}\n"
+   }
+  ]
+ },
+ {
+  "group": "multi-file",
+  "code": "mod stack;\nuse stack::Stack;\n\nfn main() {\n    let mut s = Stack::new();\n    s.",
+  "expect": "^push\\(",
+  "others": [
+   {
+    "name": "stack.rs",
+    "content": "pub struct Stack {\n    items: Vec<i32>,\n}\n\nimpl Stack {\n    pub fn new() -> Self {\n        Stack { items: Vec::new() }\n    }\n    pub fn push(&mut self, x: i32) {\n        self.items.push(x);\n    }\n    pub fn peek(&self) -> Option<&i32> {\n        self.items.last()\n    }\n}\n"
+   }
+  ]
+ }
+]

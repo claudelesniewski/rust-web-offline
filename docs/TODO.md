@@ -1,13 +1,8 @@
 # TODO
 
 - Try some creative prompting, constraints, etc. (possibly in conjunction
-  with the toolchain) to improve AI suggestions.
-
-## Python
-
-What Rust has and Python doesn't yet:
-
-- AI suggestions (their prompt and check are Rust's).
+  with the toolchain) to improve AI suggestions; `bench/ai.mjs` measures
+  them, in Rust and Python.
 
 ## IDE features
 

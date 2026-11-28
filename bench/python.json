@@ -1,0 +1,165 @@
+[
+ {
+  "group": "tune",
+  "code": "nums = []\nfor i in range(10):\n    nums.",
+  "expect": "^append\\(i\\)"
+ },
+ {
+  "group": "tune",
+  "code": "import math\n\n\nclass Point:\n    def __init__(self, x, y):\n        self.x = x\n        self.y = y\n\n    def distance(self, other):\n        return ",
+  "expect": "sqrt|hypot|\\*\\* 0\\.5"
+ },
+ {
+  "group": "tune",
+  "code": "def word_count(text):\n    counts = {}\n    for word in text.split():\n        ",
+  "expect": "^(counts\\[word\\] = counts\\.get\\(word, 0\\) \\+ 1|if word (not )?in counts:)"
+ },
+ {
+  "group": "tune",
+  "code": "import sys\n\nline = sys.stdin.",
+  "expect": "^readline\\(\\)"
+ },
+ {
+  "group": "tune",
+  "code": "def fib(n):\n    if n < 2:\n        return n\n    ",
+  "expect": "^return fib\\(n ?- ?1\\) ?\\+ ?fib\\(n ?- ?2\\)"
+ },
+ {
+  "group": "tune",
+  "code": "nums = [1, 2, 3]\ntotal = ",
+  "expect": "^(sum\\(nums\\)|0$)"
+ },
+ {
+  "group": "tune",
+  "code": "name = \"Ada\"\nprint(",
+  "expect": "^(f[\\\"'][^\\\"']*\\{name\\}|[\\\"'][^\\\"']*[\\\"'],\\s*name)"
+ },
+ {
+  "group": "tune",
+  "code": "class Point:\n    def __init__(self, x, y):\n        self.x = x\n        ",
+  "expect": "^self\\.y = y"
+ },
+ {
+  "group": "tune",
+  "code": "line = input()\nn = ",
+  "expect": "^int\\(line"
+ },
+ {
+  "group": "tune",
+  "code": "items = [\"a\", \"b\"]\nfor i, x in ",
+  "expect": "^enumerate\\(items\\):"
+ },
+ {
+  "group": "tune",
+  "code": "ages: dict[str, int] = ",
+  "expect": "^\\{\\}"
+ },
+ {
+  "group": "tune",
+  "code": "def largest(nums):\n    best = nums[0]\n    for x in nums:\n        if x > best:\n            ",
+  "expect": "^best = x"
+ },
+ {
+  "group": "tune",
+  "code": "s = \"hello\"\nn = ",
+  "expect": "^len\\(s\\)"
+ },
+ {
+  "group": "tune",
+  "code": "text = \"a b c\"\nwords = text.",
+  "expect": "^split\\(\\)"
+ },
+ {
+  "group": "tune",
+  "code": "nums = [3, 1, 2]\nnums.",
+  "expect": "^sort\\("
+ },
+ {
+  "group": "tune",
+  "code": "ages = {\"Ada\": 36}\nage = ages.",
+  "expect": "^get\\("
+ },
+ {
+  "group": "tune",
+  "code": "s = \"  hi  \"\nt = s.",
+  "expect": "^strip\\(\\)"
+ },
+ {
+  "group": "tune",
+  "code": "stack = [1, 2]\ntop = stack.",
+  "expect": "^pop\\(\\)"
+ },
+ {
+  "group": "held-out",
+  "code": "nums = [1, 2, 3]\ntotal = 0\nfor x in nums:\n    ",
+  "expect": "^total \\+= x"
+ },
+ {
+  "group": "held-out",
+  "code": "def is_even(n):\n    return ",
+  "expect": "^n % 2 == 0"
+ },
+ {
+  "group": "held-out",
+  "code": "nums = [1, 2, 3]\nsquares = [",
+  "expect": "^(\\w+) (\\*\\* 2|\\* \\1) for \\1 in nums\\]"
+ },
+ {
+  "group": "held-out",
+  "code": "class Rectangle:\n    def __init__(self, width, height):\n        self.width = width\n        self.height = height\n\n    def area(self):\n        return ",
+  "expect": "^self\\.width \\* self\\.height"
+ },
+ {
+  "group": "held-out",
+  "code": "s = \"hi\"\nupper = s.",
+  "expect": "^upper\\(\\)"
+ },
+ {
+  "group": "held-out",
+  "code": "count = 0\nwhile count < 10:\n    ",
+  "expect": "^count \\+= 1"
+ },
+ {
+  "group": "held-out",
+  "code": "def describe(shape):\n    match shape:\n        case \"circle\":\n            return \"round\"\n        ",
+  "expect": "^case "
+ },
+ {
+  "group": "held-out",
+  "code": "import sys\n\nargs = sys.",
+  "expect": "^argv"
+ },
+ {
+  "group": "multi-file",
+  "code": "import geometry\n\na = geometry.",
+  "expect": "^area\\(",
+  "others": [
+   {
+    "name": "geometry.py",
+    "content": "def area(width, height):\n    return width * height\n"
+   }
+  ]
+ },
+ {
+  "group": "multi-file",
+  "code": "from shapes import Circle\n\nc = ",
+  "expect": "^Circle\\(",
+  "others": [
+   {
+    "name": "shapes.py",
+    "content": "class Circle:\n    def __init__(self, radius):\n        self.radius = radius\n"
+   }
+  ]
+ },
+ {
+  "group": "multi-file",
+  "code": "from stack import Stack\n\ns = Stack()\ns.",
+  "expect": "^push\\(",
+  "others": [
+   {
+    "name": "stack.py",
+    "content": "class Stack:\n    def __init__(self):\n        self.items = []\n\n    def push(self, x):\n        self.items.append(x)\n\n    def pop(self):\n        return self.items.pop()\n"
+   }
+  ]
+ }
+]

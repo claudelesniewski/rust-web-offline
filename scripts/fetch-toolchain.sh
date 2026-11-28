@@ -16,8 +16,8 @@
 # Python documentation: that of Python 3.14.2, Pyodide's (PSF licence).
 # Test model: a 1 MB llama.cpp test model (MIT), which tests/e2e.mjs uses in
 # place of the real one to test AI suggestions. Test Pyodide: the Python
-# pack's files (as in web/packs.json) and a small package, which tests/e2e.mjs
-# serves in place of the CDN.
+# pack's files (as in web/packs.json) and a small package, and test Ruff, the
+# Ruff pack's, which tests/e2e.mjs serves in place of the CDN.
 #
 # Mirror: these files are also published as a release of this repository,
 # named after a hash of the pins below, by .github/workflows/mirror.yml, so
@@ -38,6 +38,7 @@ BASE="https://raw.githubusercontent.com/ryancbuckley/rust-playground-inbrowser-s
 DOCS="https://static.rust-lang.org/dist/$NIGHTLY/rust-docs-nightly-x86_64-unknown-linux-gnu.tar.xz"
 PYTHON_DOCS="https://www.python.org/ftp/python/doc/3.14.2/python-3.14.2-docs-html.tar.bz2"
 PYODIDE="https://cdn.jsdelivr.net/pyodide/v314.0.8/full"
+RUFF="https://cdn.jsdelivr.net/npm/@astral-sh/ruff-wasm-web@0.17.6"
 TEST_MODEL="https://huggingface.co/ggml-org/models-moved/resolve/499bc8821c6b12b4e53c5bffcb21ec206f212d81/tinyllamas/stories260K.gguf"
 # sha256, path under build/cache/toolchain, and URL if not $BASE/path.
 PINS="
@@ -58,6 +59,8 @@ e14d49ceca9b4a0e274ea918f3a898de2d3880b6e5573a6cfe1a2267ecc70329  test/pyodide/p
 2bd3394a145bfbbe5bbc9d9d6ab9136abbb986c6fef6c142b3a2962227aa5c28  test/pyodide/python_stdlib.zip  $PYODIDE/python_stdlib.zip
 5dc2fc119108bc148c7457dc86e7675b5c87e1cafd420b9c34c1eaef7b36c010  test/pyodide/pyodide-lock.json  $PYODIDE/pyodide-lock.json
 6541523b4b16c1953d2fc9b82fb86c540eea9f78fca329ab371ed13a8b0faa51  test/pyodide/annotated_types-0.7.0-py3-none-any.whl  $PYODIDE/annotated_types-0.7.0-py3-none-any.whl
+8a90aec3c47c6d0b06a0930d2ff7be0b584e15fc7c09768f74717fc8b5103d0e  test/ruff/ruff_wasm.js  $RUFF/ruff_wasm.js
+aee635cd86fd718af224d460e786422a76eeae4c59719eb89f6925f9514d39e1  test/ruff/ruff_wasm_bg.wasm  $RUFF/ruff_wasm_bg.wasm
 "
 
 TAG="toolchain-$(printf '%s' "$PINS" | sha256sum | cut -c1-12)"

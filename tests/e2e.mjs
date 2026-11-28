@@ -20,10 +20,12 @@ writeFileSync(join(site, "test-model.gguf"), model);
 const lmIndex = JSON.parse(readFileSync(join(site, "lm/index.json"), "utf8"));
 lmIndex.model = { url: "test-model.gguf", sha256: createHash("sha256").update(model).digest("hex"), size: model.length };
 writeFileSync(join(site, "lm/index.json"), JSON.stringify(lmIndex));
-// The Python pack comes from the files fetch-toolchain.sh pinned, not the CDN.
-cpSync("build/cache/toolchain/test/pyodide", join(site, "test-pyodide"), { recursive: true });
+// The Python and Ruff packs come from the files fetch-toolchain.sh pinned,
+// not the CDN.
 const packsJson = JSON.parse(readFileSync(join(site, "packs.json"), "utf8"));
+for (const id of ["pyodide", "ruff"]) cpSync(`build/cache/toolchain/test/${id}`, join(site, `test-${id}`), { recursive: true });
 packsJson.python.base = "test-pyodide/";
+packsJson.ruff.base = "test-ruff/";
 writeFileSync(join(site, "packs.json"), JSON.stringify(packsJson));
 const server = await serve(site);
 const requests = [];
@@ -551,6 +553,20 @@ try {
     await page.keyboard.press("F12");
     await page.locator('#file-list li.active[data-name="calc.py"]').waitFor();
     assert.equal(await page.locator(".cm-activeLine").innerText(), "def half(x):");
+  });
+
+  await step("format Python with Ruff, installed when first needed", async () => {
+    await setCode("calc.py", "def half( x ):\n  return {'x':x/2}\n");
+    page.once("dialog", (d) => d.accept()); // "Ruff isn't installed. Download it?"
+    await page.locator("#format:not([disabled])").click();
+    await page.locator("#output", { hasText: "Formatted." }).waitFor({ timeout: 60_000 });
+    assert.equal((await page.locator(".cm-content").innerText()).trimEnd(), 'def half(x):\n    return {"x": x / 2}');
+    // Code that doesn't parse stays as it is.
+    await setCode("calc.py", "def half(:\n");
+    await page.locator("#format:not([disabled])").click();
+    await page.locator("#output", { hasText: "Formatting failed." }).waitFor();
+    assert.equal((await page.locator(".cm-content").innerText()).trimEnd(), "def half(:");
+    await setCode("calc.py", "def half(x):\n    return x / 0\n");
   });
 
   await step("Rust is a toolchain too: removed, then installed again when needed", async () => {

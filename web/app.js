@@ -17,6 +17,7 @@ import { find, replaceAll } from "./find.js";
 import * as packs from "./packs.js";
 import { LANGUAGES, findLocations, languageOf, validName, withExtension } from "./languages.js";
 import { parseTraceback } from "./traceback.js";
+import { formatPython } from "./ruff.js";
 
 const $ = (id) => document.getElementById(id);
 const setStatus = (text) => { $("status").textContent = text; };
@@ -643,12 +644,28 @@ function run() {
 }
 
 function format() {
-  if (!active.endsWith(".rs")) return setStatus("Format is for Rust files.");
+  if (active.endsWith(".py")) return formatPythonFile();
   if (current !== null || !rustReady()) return;
   current = nextId++;
   setBusy(true);
   terminal.clear();
   compiler.postMessage({ type: "format", id: current, name: active, content: editor.text() });
+}
+
+/** Format the open Python file with Ruff, installing it first (asking). */
+async function formatPythonFile() {
+  if (current !== null || !(await ensurePack("ruff"))) return;
+  const [name, text] = [active, editor.text()];
+  terminal.clear();
+  try {
+    const formatted = await formatPython(text);
+    // Unless the file changed meanwhile, as Ruff loaded.
+    if (active === name && editor.text() === text && formatted !== text) editor.replace(formatted);
+    terminal.write("info", "Formatted.\n");
+  } catch (e) {
+    terminal.write("stderr", `${e.message ?? e}\n`);
+    terminal.write("info", "Formatting failed.\n");
+  }
 }
 
 function stop() {

@@ -32,5 +32,23 @@
       }
     ],
     "lock": "pyodide-lock.json"
+  },
+  "ruff": {
+    "title": "Ruff (formats Python)",
+    "about": "Ruff 0.17.6 (MIT), a Python formatter compatible with Black, compiled to WebAssembly: Format for .py files.",
+    "base": "https://cdn.jsdelivr.net/npm/@astral-sh/ruff-wasm-web@0.17.6/",
+    "dir": "packs/ruff/",
+    "files": [
+      {
+        "name": "ruff_wasm.js",
+        "sha256": "8a90aec3c47c6d0b06a0930d2ff7be0b584e15fc7c09768f74717fc8b5103d0e",
+        "size": 26641
+      },
+      {
+        "name": "ruff_wasm_bg.wasm",
+        "sha256": "aee635cd86fd718af224d460e786422a76eeae4c59719eb89f6925f9514d39e1",
+        "size": 10125268
+      }
+    ]
   }
 }

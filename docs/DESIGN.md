@@ -189,7 +189,10 @@ service worker (sw.js): precache the site, serve it and the installed
   them out of the precache. Content-hashed files come first, so an update
   cut short leaves the indexes that name them as they were. Python's pack is
   Pyodide's core files (CPython and its standard library, 13 MB), stored
-  under `packs/python/`.
+  under `packs/python/`. Ruff's pack is its WebAssembly build (10 MB, from
+  npm via the same CDN), which `web/ruff.js` loads to format Python as
+  Black would; Pyodide has no formatter, and Ruff's is fast and small
+  enough to be a pack of its own.
   Its packages come from Pyodide's lock file (`pyodide-lock.json`), which
   names each one's file, SHA-256 and dependencies; installing one fetches
   those too, from the same CDN. Separate builds of the site per language

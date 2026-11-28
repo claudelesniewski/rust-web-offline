@@ -60,7 +60,7 @@ async function download(url, sha256, onBytes) {
   return blob;
 }
 
-const typeOf = (name) => (name.endsWith(".mjs") ? "text/javascript"
+const typeOf = (name) => (/\.m?js$/.test(name) ? "text/javascript"
   : name.endsWith(".wasm") ? "application/wasm"
   : name.endsWith(".json") ? "application/json" : "application/octet-stream");
 

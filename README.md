@@ -30,8 +30,10 @@ library run as WebAssembly on your machine; nothing is sent to a server.
   remove them. **Format** for `.py` files uses Ruff (10 MB, installed when
   first used).
 - Optional Vim key bindings (in **Options**), with `:w` to save.
-- Type-aware completion after `.` (on by default, in **Options**): the
-  compiler finds the type, and the offline docs list its methods.
+- Type-aware completion after `.` (on by default, in **Options**): in Rust,
+  the compiler finds the type, and the offline docs list its methods; in
+  Python, jedi (installed with Python) finds the members, and modules in
+  imports.
 - Optional **AI** suggestions (in **Options**): a small language model (SmolLM2-135M, a 145 MB
   download when turned on) runs on the device and suggests the rest of the
   line, shown greyed out; Tab takes it (Shift-Tab when a completion list is

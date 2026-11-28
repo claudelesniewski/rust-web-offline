@@ -3,11 +3,13 @@
 // Messages from the page:
 //   { type: "init", stdin }        stdin: a SharedArrayBuffer, see below
 //   { type: "run", id, files, main }
+//   { type: "complete", id, files, name, line, col }  (line from 1, col from 0)
 // Messages to the page:
 //   { type: "status", text }
 //   { type: "output", id, stream: "stdout" | "stderr", text }
 //   { type: "stdin", id }          the program waits for a line of input
 //   { type: "done", id, code, ms }
+//   { type: "completions", id, options }  [{ label, type, detail }], or null
 //   { type: "error", id?, text }
 // Stdin: the page writes a line's bytes at offset 8 and their length (or
 // -1 for end of input) at [1] of an Int32Array over the buffer, then sets
@@ -56,6 +58,16 @@ def _run(path):
             tb = tb.tb_next
         traceback.print_exception(type(e), e, tb)
         return 1
+
+# jedi's kinds of names, as CodeMirror's completion types.
+_KINDS = {"module": "namespace", "class": "class", "function": "function", "keyword": "keyword",
+          "property": "property", "param": "variable", "statement": "variable", "instance": "variable"}
+
+def _complete(code, path, line, col):
+    import jedi
+    script = jedi.Script(code, path=path, project=jedi.Project("${SRC}"))
+    return [{"label": c.name, "type": _KINDS.get(c.type, "variable"), "detail": c.description}
+            for c in script.complete(line, col)[:200]]
 `);
   post({ type: "status", text: "Ready." });
 }
@@ -108,11 +120,31 @@ async function run({ id, files, main }) {
   post({ type: "done", id, code: exit, ms: performance.now() - t0 });
 }
 
+/** Completions at a place in a file of the project, by jedi (a package of
+ *  the Python pack); null if it isn't installed. */
+async function complete({ id, files, name, line, col }) {
+  if (!pyodide) await load();
+  let options = null;
+  try {
+    await pyodide.loadPackage("jedi", { messageCallback: () => {}, errorCallback: () => {} });
+    writeFiles(files);
+    const code = files.find((f) => f.name === name)?.content ?? "";
+    options = pyodide.globals.get("_complete")(code, `${SRC}/${name}`, line, col).toJs({ dict_converter: Object.fromEntries });
+  } catch {
+    // Not installed (offline), or jedi failed: no completions.
+  }
+  post({ type: "completions", id, options });
+}
+
+// One request at a time: each writes the project's files.
+let queue = Promise.resolve();
 onmessage = ({ data: m }) => {
   if (m.type === "init") {
     ctrl = new Int32Array(m.stdin, 0, 2);
     bytes = new Uint8Array(m.stdin, 8);
   } else if (m.type === "run") {
-    run(m).catch((e) => post({ type: "error", id: m.id, text: String(e?.message ?? e) }));
+    queue = queue.then(() => run(m)).catch((e) => post({ type: "error", id: m.id, text: String(e?.message ?? e) }));
+  } else if (m.type === "complete") {
+    queue = queue.then(() => complete(m));
   }
 };

@@ -555,6 +555,22 @@ try {
     assert.equal(await page.locator(".cm-activeLine").innerText(), "def half(x):");
   });
 
+  await step("Python completion: members after a dot, and modules in imports, by jedi", async () => {
+    const optionsAfter = async (code) => {
+      await setCode("oops.py", "");
+      await page.keyboard.type(code);
+      await page.locator(".cm-tooltip-autocomplete").waitFor({ timeout: 60_000 });
+      const labels = await page.locator(".cm-completionLabel").allInnerTexts();
+      await page.keyboard.press("Escape");
+      return labels;
+    };
+    assert.ok((await optionsAfter("import calc\ncalc.")).includes("half"));
+    const str = await optionsAfter("s = 'x'\ns.up");
+    assert.ok(str.includes("upper") && !str.includes("half"), str.join(" "));
+    assert.ok((await optionsAfter("from collec")).includes("collections"));
+    await setCode("oops.py", "import calc\n\nprint(calc.half(4))\n");
+  });
+
   await step("format Python with Ruff, installed when first needed", async () => {
     await setCode("calc.py", "def half( x ):\n  return {'x':x/2}\n");
     page.once("dialog", (d) => d.accept()); // "Ruff isn't installed. Download it?"

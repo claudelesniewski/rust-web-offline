@@ -13,7 +13,8 @@ const PACKAGE = "X-Package";
 const hex = (buf) => [...new Uint8Array(buf)].map((b) => b.toString(16).padStart(2, "0")).join("");
 
 /** The packs that can be installed: { id: { title, about, base, dir, files,
- *  lock?, default? } }. Default packs are installed unless removed. */
+ *  lock?, packages?, default? } }. Default packs are installed unless
+ *  removed; `packages`, from the lock, are installed with the pack. */
 export async function available() {
   return (await fetch("packs.json")).json();
 }
@@ -86,9 +87,9 @@ async function cached(cache, id) {
   return all;
 }
 
-/** Install or update pack `id` (its files, not yet any packages), then
- *  remove its files from earlier versions; `onProgress(done, total)` follows
- *  it, in bytes. */
+/** Install or update pack `id` (its files and `packages`), then remove its
+ *  files from earlier versions; `onProgress(done, total)` follows its files,
+ *  in bytes. */
 export async function install(pack, id, onProgress) {
   const cache = await caches.open(CACHE);
   const total = size(pack);
@@ -105,13 +106,18 @@ export async function install(pack, id, onProgress) {
   for (const [req, res] of await cached(cache, id)) {
     if (!current.has(req.url) && !res.headers.has(PACKAGE)) await cache.delete(req);
   }
+  if (pack.packages) await installPackages(id, pack, pack.packages);
   onProgress?.(total, total);
 }
 
-/** Whether `pack` is installed: all its files are cached, as pinned. */
+/** Whether `pack` is installed: all its files and `packages` are cached,
+ *  as pinned. */
 export async function isInstalled(pack) {
   const cache = await caches.open(CACHE);
   for (const f of pack.files) if (!(await has(cache, pack, f))) return false;
+  for (const p of pack.packages ? withDependencies(await packages(pack), pack.packages) : []) {
+    if (!(await has(cache, pack, { name: p.file_name, sha256: p.sha256 }))) return false;
+  }
   return true;
 }
 

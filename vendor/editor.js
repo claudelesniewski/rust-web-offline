@@ -7,9 +7,9 @@ import { indentUnit } from "@codemirror/language";
 import { acceptCompletion, closeCompletion, ifNotIn, startCompletion } from "@codemirror/autocomplete";
 import { lintGutter, setDiagnostics } from "@codemirror/lint";
 import { rust, rustLanguage } from "@codemirror/lang-rust";
-import { python } from "@codemirror/lang-python";
+import { python, pythonLanguage } from "@codemirror/lang-python";
 import { oneDark } from "@codemirror/theme-one-dark";
-import { rustCompletions } from "./completion.js";
+import { pythonCompletions, rustCompletions } from "./completion.js";
 import { acceptGhost, dropGhost, ghostText } from "./ghost.js";
 import { Vim, vim } from "@replit/codemirror-vim";
 
@@ -44,7 +44,7 @@ const tab = {
 export function createEditor(parent, { onChange, keys = [], onSave = () => {}, onDefinition = () => {} }) {
   const states = new Map();
   let suggest = null;
-  let typeMethods = null;
+  let members = null;
   // Vim key bindings, when on: first, so that they come before the others.
   const vimMode = new Compartment();
   let vimOn = false;
@@ -77,7 +77,10 @@ export function createEditor(parent, { onChange, keys = [], onSave = () => {}, o
     name.endsWith(".py") ? python() : rust(),
     rustLanguage.data.of({
       autocomplete: ifNotIn(["String", "RawString", "Char", "LineComment", "BlockComment"],
-        rustCompletions((...args) => typeMethods?.(...args) ?? null)),
+        rustCompletions((...args) => members?.(...args) ?? null)),
+    }),
+    pythonLanguage.data.of({
+      autocomplete: ifNotIn(["String", "FormatString", "Comment"], pythonCompletions((...args) => members?.(...args) ?? null)),
     }),
     oneDark,
     lintGutter(),
@@ -123,8 +126,9 @@ export function createEditor(parent, { onChange, keys = [], onSave = () => {}, o
      *  returns the rest of the line at `pos`, or off with null. */
     setSuggest(fn) { suggest = fn; },
     /** Turn type-aware completion on with `fn(doc, from, to)`, which returns
-     *  the options after a dot (or null), or off with null. */
-    setTypeMethods(fn) { typeMethods = fn; },
+     *  the options after a dot, or in Python's imports (or null), or off
+     *  with null. */
+    setMembers(fn) { members = fn; },
     /** Turn Vim key bindings on or off, in every file. */
     setVim(on) {
       vimOn = on;

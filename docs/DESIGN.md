@@ -213,6 +213,13 @@ service worker (sw.js): precache the site, serve it and the installed
   run starts a new one. A traceback shows only the program's frames (not
   runpy's); `web/traceback.js` makes its places links, and underlines where
   the exception was raised, and the calls that led there.
+- **Python completion.** CodeMirror's Python mode completes keywords,
+  builtins and the file's names. After a dot, and in imports, the editor
+  asks the Python worker, which asks jedi (a package installed with the
+  Python pack, 1.7 MB with parso) with the project's files in `/src`: the
+  members of what jedi infers is there, and modules and their names. The
+  first takes about a second, as Python loads; later ones, about 150 ms.
+  While a program runs, the worker can't answer, and there are none.
 
 ## Limits
 
@@ -221,7 +228,7 @@ service worker (sw.js): precache the site, serve it and the installed
 - Memory: rustc reserves up to 1 GiB of address space (512 MiB on devices
   reporting under 4 GB of RAM). Very large programs may run out.
 - Python: only packages that Pyodide builds for WebAssembly (no PyTorch, for
-  one); no completion yet.
+  one).
 - Standard library only; one crate per run; programs are wasm, so no
   processes, networking or real filesystem.
 - The toolchain is a nightly using the Cranelift backend. Its author reports

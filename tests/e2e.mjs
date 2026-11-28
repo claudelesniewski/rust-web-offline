@@ -344,6 +344,12 @@ try {
     await page.locator("#format:not([disabled])").click();
     await page.locator("#output", { hasText: "Formatted." }).waitFor({ timeout: 60_000 });
     assert.match(await page.locator(".cm-content").innerText(), /pub fn double\(x: i32\) -> i32 \{\n\s+x \* 2\n\}/);
+    // A file with `mod geometry;`: rustfmt follows it into geometry.rs.
+    await setCode("main.rs", 'mod geometry;\nfn main(){println!("{}",geometry::double(2));}\n');
+    await page.locator("#format:not([disabled])").click();
+    await page.locator("#output", { hasText: /Formatted\.|Formatting failed\./ }).waitFor({ timeout: 60_000 });
+    assert.match(await output(), /^Formatted\./m);
+    assert.match(await page.locator(".cm-content").innerText(), /fn main\(\) \{\n\s+println!\("\{\}", geometry::double\(2\)\);\n\}/);
   });
 
   await step("run Rust's tests, each on its own, so a failing one doesn't stop the others", async () => {

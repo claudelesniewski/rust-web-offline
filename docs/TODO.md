@@ -15,7 +15,6 @@ What Rust has and Python doesn't yet:
 - Errors underlined in the editor.
 - Go to definition (F12) and Format.
 - Offline docs: the Python documentation, searchable.
-- GitHub sync of `.py` files (sync handles `.rs` files only).
 
 ## IDE features
 

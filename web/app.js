@@ -15,6 +15,7 @@ import * as sync from "./sync.js";
 import { initLayout } from "./layout.js";
 import { find, replaceAll } from "./find.js";
 import * as packs from "./packs.js";
+import { LANGUAGES, languageOf, validName, withExtension } from "./languages.js";
 
 const $ = (id) => document.getElementById(id);
 const setStatus = (text) => { $("status").textContent = text; };
@@ -187,9 +188,10 @@ function openFile(name) {
 
 /** A name like `base` that no file has yet: base.rs, base_2.rs, … (or .py) */
 function freeName(base) {
-  const [, stem, ext = ".rs"] = base.match(/^(.*?)(\.(?:rs|py))?$/);
-  let name = stem + ext;
-  for (let i = 2; files.has(name); i++) name = `${stem}_${i}${ext}`;
+  const first = withExtension(base);
+  const { ext } = languageOf(first);
+  let name = first;
+  for (let i = 2; files.has(name); i++) name = `${first.slice(0, -ext.length)}_${i}${ext}`;
   return name;
 }
 
@@ -197,10 +199,11 @@ function freeName(base) {
 function askName(message, initial) {
   let name = prompt(message, initial)?.trim();
   if (!name) return null;
-  if (!/\.(?:rs|py)$/.test(name)) name += ".rs";
-  if (!store.validName(name)) {
+  name = withExtension(name);
+  if (!validName(name)) {
     alert(`"${name}" is not a valid name: use letters, digits and _, starting with a letter, ` +
-      "with folders before / (as in geometry/shapes.rs), and ending in .rs (Rust) or .py (Python).");
+      "with folders before / (as in geometry/shapes.rs), and ending in " +
+      `${LANGUAGES.map((l) => `${l.ext} (${l.name})`).join(" or ")}.`);
     return null;
   }
   if (files.has(name)) {
@@ -345,7 +348,7 @@ function setupSync() {
     syncStatus("Pulling…");
     const { head, files: remote } = await sync.pull(gh, link);
     const count = Object.keys(remote).length;
-    if (!count) return syncStatus(`There are no .rs files in ${sync.paths(link.dir).src} there.`);
+    if (!count) return syncStatus(`There are no ${LANGUAGES.map((l) => l.ext).join(" or ")} files in ${link.dir || "/"} there.`);
     await replaceFiles(remote);
     await store.setSetting(linkKey(), { ...link, head, snapshot: remote });
     syncStatus(`Pulled ${count} file${count === 1 ? "" : "s"} from commit ${short(head)}.`);
@@ -434,8 +437,8 @@ function setupFileActions() {
   $("import-input").onchange = async (e) => {
     for (const file of e.target.files) {
       let name = file.name.replace(/[^A-Za-z0-9_.]/g, "_").replace(/^(?=[0-9])/, "_");
-      if (!/\.(?:rs|py)$/.test(name)) name += ".rs";
-      if (!store.validName(name)) name = freeName("imported");
+      name = withExtension(name);
+      if (!validName(name)) name = freeName("imported");
       if (files.has(name) && !confirm(`Replace the existing ${name}?`)) name = freeName(name);
       await addFile(name, await file.text());
     }

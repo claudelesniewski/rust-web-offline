@@ -54,12 +54,3 @@ test("projects keep their files apart, and deleting one deletes its files", asyn
   assert.equal((await store.listProjects()).length, 1);
   assert.equal((await store.listFiles(store.FIRST_PROJECT)).length, 2);
 });
-
-test("file names are paths of module names ending in .rs or .py", () => {
-  for (const ok of ["main.rs", "my_mod.rs", "_x.rs", "A1.rs", "geometry/shapes.rs", "a/b/c.rs", "hello.py", "pkg/util.py"]) {
-    assert.ok(store.validName(ok), ok);
-  }
-  for (const bad of ["main", "1x.rs", "my-mod.rs", "a b.rs", "../x.rs", "/x.rs", "a//b.rs", "a/.rs", ".rs", "x.rs.txt", "1a/b.rs", "x.pyc", "my-script.py"]) {
-    assert.ok(!store.validName(bad), bad);
-  }
-});

@@ -13,7 +13,8 @@ library run as WebAssembly on your machine; nothing is sent to a server.
   `foo.rs` or `foo/mod.rs`. Import `.rs` files; export one file or a whole
   project as a `.zip`.
 - Sync a project with a GitHub repository (project menu → **GitHub…**): push
-  its files to `src/` there, as a Cargo package, or pull them back. It needs
+  its files there, or pull them back. A Rust project is a Cargo package
+  there (its files under `src/`); a Python one, the folder's `.py` files. It needs
   a fine-grained personal access token for that repository with **Contents:
   read and write** (github.com → Settings → Developer settings → Personal
   access tokens → Fine-grained tokens), kept in the browser only.

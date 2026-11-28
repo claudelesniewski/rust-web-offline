@@ -48,19 +48,19 @@ export function createGitHub({ token, repo, fetch = globalThis.fetch.bind(global
       return (await call("GET", `/git/ref/heads/${encodeURIComponent(branch)}`)).object.sha;
     },
 
-    /** The text of the files under `prefix` in `commit`: { path: content },
-     *  paths relative to `prefix`; and whether `extra` exists (a path). */
-    async read(commit, prefix, extra) {
+    /** The files under `prefix` in `commit`: `names`, all their paths
+     *  (relative to `prefix`), and `files`, { path: content } of those that
+     *  `pick(names)` returns. */
+    async read(commit, prefix, pick = (names) => names) {
       const tree = (await call("GET", `/git/commits/${commit}`)).tree.sha;
       const { tree: entries, truncated } = await call("GET", `/git/trees/${tree}?recursive=1`);
       if (truncated) throw new GitHubError(0, "GitHub: the repository is too large to read");
+      const shas = new Map();
+      for (const e of entries) if (e.type === "blob" && e.path.startsWith(prefix)) shas.set(e.path.slice(prefix.length), e.sha);
+      const names = [...shas.keys()];
       const files = {};
-      for (const e of entries) {
-        if (e.type !== "blob" || !e.path.startsWith(prefix)) continue;
-        files[e.path.slice(prefix.length)] = { sha: e.sha };
-      }
-      for (const [name, f] of Object.entries(files)) files[name] = fromBase64((await call("GET", `/git/blobs/${f.sha}`)).content);
-      return { files, hasExtra: entries.some((e) => e.path === extra) };
+      for (const name of pick(names)) files[name] = fromBase64((await call("GET", `/git/blobs/${shas.get(name)}`)).content);
+      return { names, files };
     },
 
     /** Commit on top of `parent`, as the new head of `branch`: files to

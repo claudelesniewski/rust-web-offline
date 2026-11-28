@@ -1,7 +1,8 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import { createGitHub } from "../../web/github.js";
-import { SyncConflict, cargoToml, changedSince, paths, pull, push } from "../../web/sync.js";
+import { cargoToml } from "../../web/languages.js";
+import { SyncConflict, changedSince, folder, layoutOf, pull, push } from "../../web/sync.js";
 import { createFakeGitHub } from "../fake-github.mjs";
 
 /** A repository with a README, and a client for it. */
@@ -14,9 +15,12 @@ function setup() {
 
 const project = (entries) => new Map(Object.entries(entries));
 
-test("paths of a link's files", () => {
-  assert.deepEqual(paths(""), { src: "src/", cargo: "Cargo.toml" });
-  assert.deepEqual(paths("/rust/hello/"), { src: "rust/hello/src/", cargo: "rust/hello/Cargo.toml" });
+test("a link's folder, and how files are laid out there", () => {
+  assert.equal(folder(""), "");
+  assert.equal(folder("/rust/hello/"), "rust/hello/");
+  assert.equal(layoutOf(["main.rs", "tool.py"]).src, "src/"); // Rust's, a Cargo package
+  assert.equal(layoutOf(["Cargo.toml", "README.md"]).src, "src/");
+  assert.equal(layoutOf(["main.py", "lib/util.py"]).src, ""); // Python's: as they are
 });
 
 test("a first push adds the files and a Cargo.toml, and keeps the rest", async () => {
@@ -75,4 +79,16 @@ test("local changes are told apart from the snapshot", () => {
   assert.equal(changedSince(project({ "a.rs": "2" }), { "a.rs": "1" }), true);
   assert.equal(changedSince(project({ "a.rs": "1", "b.rs": "" }), { "a.rs": "1" }), true);
   assert.equal(changedSince(project({}), undefined), false);
+});
+
+test("a Python project's files are its folder's: no src/, no Cargo.toml", async () => {
+  const { fake, gh } = setup();
+  const link = { branch: "main", dir: "py" };
+  link.head = await push(gh, link, project({ "main.py": "print(1)", "lib/util.py": "x = 1" }), { message: "1", project: "p" });
+  assert.deepEqual(fake.files(), { "README.md": "# Code\n", "py/main.py": "print(1)", "py/lib/util.py": "x = 1" });
+  fake.commitFiles({ "py/main.py": "print(2)", "py/notes.txt": "not a project file" });
+  const { head, files } = await pull(gh, link);
+  assert.deepEqual(files, { "main.py": "print(2)", "lib/util.py": "x = 1" });
+  link.head = await push(gh, { ...link, head }, project({ "main.py": "print(3)" }), { message: "2", project: "p" });
+  assert.deepEqual(fake.files(), { "README.md": "# Code\n", "py/main.py": "print(3)", "py/notes.txt": "not a project file" });
 });

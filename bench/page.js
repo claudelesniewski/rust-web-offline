@@ -43,7 +43,7 @@ function toolchain(language, others) {
     const types = createTypeCompletion({ check, fetchText: async (p) => (await fetch(p)).text() });
     return {
       main: "main.rs",
-      members: (doc, from, to) => types(doc, from, to, files(doc).map((f) => f.content), "main.rs"),
+      members: (doc, from, to) => types(doc, from, to, files(doc), "main.rs"),
       check: async (source, line) => fixOnLine(await check(source, true), "main.rs", line, source.split("\n")[line - 1]),
     };
   }

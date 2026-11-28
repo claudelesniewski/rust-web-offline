@@ -1,7 +1,8 @@
 // AI suggestions, helped by the toolchain:
 // - Right after a dot, the model may only write a member (method or field)
 //   that is really there: type-aware completion finds them (Rust's compiler,
-//   Python's jedi), and a grammar (llama.cpp's GBNF) holds the model to them.
+//   Python's jedi), and a grammar (llama.cpp's GBNF) holds the model to them;
+//   so after Rust's `::`, to the items of the module or type there.
 // - The suggestion is checked in place, and not shown if the toolchain finds
 //   an error on its line (rustc's, or for Python, a syntax error or a name
 //   bound nowhere), unless the fixes rustc suggests mend it (`&mut input`
@@ -61,7 +62,8 @@ export function createSuggester({ complete, ai, members = null, check = null, ma
   return async function suggest(doc, pos, signal) {
     const prefix = doc.slice(0, pos);
     const suffix = doc.slice(pos);
-    const dot = members && prefix.match(/\.(\w*)$/);
+    // After a dot, or Rust's `::`.
+    const dot = members && prefix.match(/(?:\.|::)(\w*)$/);
     let options = null;
     if (dot) {
       options = (await members(doc, pos - dot[1].length, pos))?.map((o) => o.label) ?? null;

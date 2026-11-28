@@ -60,7 +60,7 @@ test("type names to look up", () => {
   for (const [type, name] of Object.entries(cases)) assert.equal(typeName(type), name, type);
 });
 
-test("stable methods taking self, from a rustdoc page", () => {
+test("stable functions from a rustdoc page, marked if they take self", () => {
   const section = (id, sig, after = "") =>
     `<section id="${id}" class="method"><span class="rightside">1.0.0</span><h4 class="code-header">${sig}</h4></section>${after}`;
   const html = [
@@ -76,8 +76,9 @@ test("stable methods taking self, from a rustdoc page", () => {
     section("method.push-1", "pub fn push(&amp;mut self, value: T)"),
   ].join("\n");
   assert.deepEqual(methodsFromHtml(html), [
-    { name: "push", sig: "fn push(&mut self, value: T)", doc: "Appends an element to the back of a collection." },
-    { name: "next", sig: "fn next(&mut self) -> Option<Self::Item>", doc: "" },
+    { name: "push", sig: "fn push(&mut self, value: T)", doc: "Appends an element to the back of a collection.", takesSelf: true },
+    { name: "new", sig: "const fn new() -> Vec<T>", doc: "", takesSelf: false },
+    { name: "next", sig: "fn next(&mut self) -> Option<Self::Item>", doc: "", takesSelf: true },
   ]);
 });
 
@@ -94,4 +95,29 @@ impl fmt::Display for Stack<i32> {
 impl Other { fn nope(&self) {} }`;
   assert.deepEqual(userMethods([src], "Stack").map((m) => m.sig),
     ["fn push(&mut self, x: T)", "fn len(&self) -> usize", "fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result"]);
+});
+
+test("after ::, a module's public items, a type's associated functions, an enum's variants", async () => {
+  const { publicItems, variants } = await import("../../web/types.js");
+  assert.deepEqual(publicItems("pub fn area() {}\nfn hidden() {}\npub struct Square;\npub(crate) const N: u8 = 1;\npub mod inner;"),
+    [{ label: "area", type: "function" }, { label: "Square", type: "type" }, { label: "N", type: "constant" }, { label: "inner", type: "namespace" }]);
+  assert.deepEqual(variants(["enum Shape {\n    Circle(f64),\n    #[allow(dead_code)]\n    Rect { w: f64, h: f64 },\n    Dot,\n}"], "Shape"),
+    ["Circle", "Rect", "Dot"]);
+  const files = [
+    { name: "main.rs", content: "mod geometry;\nfn main() {\n    let a = geometry::\n}\n" },
+    { name: "geometry.rs", content: "pub fn area(w: f64, h: f64) -> f64 { w * h }\n" },
+    { name: "config.rs", content: "pub struct Config;\nimpl Config {\n    pub fn load() -> Config { Config }\n    pub fn verbose(&self) -> bool { false }\n}\n" },
+  ];
+  const vecPage = '<section id="method.new" class="method"><h4 class="code-header">pub const fn new() -&gt; Vec&lt;T&gt;</h4></section>'
+    + '<section id="method.push" class="method"><h4 class="code-header">pub fn push(&amp;mut self, value: T)</h4></section>';
+  const complete = createTypeCompletion({
+    check: async () => { throw new Error("no compiling after ::"); },
+    fetchText: async (path) => (path === "docs/types.json" ? JSON.stringify({ Vec: "std/vec/struct.Vec.html" }) : vecPage),
+  });
+  const at = (doc) => complete(doc, doc.length, doc.length, files, "main.rs");
+  assert.deepEqual((await at("let a = geometry::")).map((o) => o.label), ["area"]);
+  assert.deepEqual((await at("let c = Config::")).map((o) => o.label), ["load"]); // not the method
+  assert.deepEqual((await at("let v = Vec::")).map((o) => o.label), ["new"]);
+  assert.equal(await at("let t = std::fs::"), null); // a std module: not known
+  assert.equal(await at("let t = Nowhere::"), null);
 });

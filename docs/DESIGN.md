@@ -108,7 +108,10 @@ service worker (sw.js): precache the site, serve it and the installed
   type's stable methods taking `self` then come from its offline docs page,
   found through `docs/types.json` (made by `pack-docs.mjs`), or, for your own
   types, from your `impl` blocks. If the type can't be found (e.g. the code
-  doesn't parse), the plain list is offered. With AI turned on: `web/lm.js` downloads
+  doesn't parse), the plain list is offered. After `::`, no compiling: a
+  project module's (`geometry.rs`) `pub` items, or a type's associated
+  functions (those not taking `self`, from its docs page or `impl` blocks)
+  and an enum's variants. With AI turned on: `web/lm.js` downloads
   [wllama](https://github.com/ngxson/wllama) (llama.cpp in wasm, 11 MB, built
   into the site but not precached) into a cache of its own, which the
   service worker keeps across versions; the model is a pack (packs.json,
@@ -122,7 +125,11 @@ service worker (sw.js): precache the site, serve it and the installed
   other files (2,000 characters at most), then the open one up to the cursor
   (1,500). The toolchain then helps:
   - Right after a dot, type-aware completion finds the members there, and a
-    llama.cpp grammar (GBNF) makes the model start with one of them.
+    llama.cpp grammar (GBNF) makes the model start with one of them; so
+    after `::`, with the items of the module or type there. (On bench/,
+    no line more right: of its five lines after `::`, those so held were
+    right already, and the others name a std module, which isn't known, or
+    get the item right but its arguments wrong.)
   - The suggestion is type-checked in place, and not shown if rustc finds
     an error on its line (or if it is only a comment, which always compiles),
     unless rustc's own suggested fixes for it (from `--error-format=json`,

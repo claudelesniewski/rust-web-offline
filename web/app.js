@@ -561,6 +561,7 @@ let compilerOutput = "";
 
 function setBusy(busy) {
   $("run").disabled = busy || loading;
+  $("test").disabled = busy || loading;
   $("format").disabled = busy || loading;
   $("stop").disabled = !busy;
 }
@@ -585,6 +586,7 @@ function startCompiler() {
       terminal.write(m.stream, m.text);
       if (m.stream === "compiler") compilerOutput += m.text;
     }
+    else if (m.type === "test") showTest(m);
     else if (m.type === "done") onDone(m);
     else if (m.type === "error") {
       terminal.write("stderr", `${m.text}\n`);
@@ -600,13 +602,17 @@ function onDone(m) {
   terminal.linkify(findLocations, (file) => files.has(file));
   if (m.stage === "compile") {
     showDiagnostics(parseDiagnostics(compilerOutput));
-    if (m.code === 0) {
+    if (m.code === 0 && tests) {
+      terminal.write("info", `Compiled in ${secs(m.ms)}. Testing…\n`);
+    } else if (m.code === 0) {
       terminal.write("info", `Compiled in ${secs(m.ms)}. Running…\n`);
       terminal.setRunning(true);
     } else {
       terminal.write("info", m.code === 137 ? "Stopped.\n" : "Compilation failed.\n");
       finishRequest();
     }
+  } else if (m.stage === "test") {
+    endTests(m);
   } else if (m.stage === "run") {
     terminal.write("info", m.code === 137 ? "\nStopped.\n" : `\nExited with code ${m.code} after ${secs(m.ms)}.\n`);
     finishRequest();
@@ -626,6 +632,7 @@ function showDiagnostics(list) {
 function finishRequest() {
   current = null;
   runningPython = false;
+  tests = null;
   terminal.setRunning(false);
   setBusy(false);
 }
@@ -649,6 +656,50 @@ function run() {
   showDiagnostics([]);
   const list = [...files].map(([name, content]) => ({ name, content }));
   compiler.postMessage({ type: "run", id: current, files: list, main: active });
+}
+
+// ---- Tests ---------------------------------------------------------------
+
+/** The tests run so far, while tests run: { passed, failed }, or null. */
+let tests = null;
+
+/** Run the tests: Rust's of the open file's crate, compiled with --test;
+ *  Python's in the project's test files (test_*.py, *_test.py) and the open
+ *  file. Each test's result shows as it comes (showTest), then a summary. */
+async function runTests() {
+  if (current !== null) return;
+  const isPython = active.endsWith(".py");
+  if (isPython ? !(await ensurePack("python")) : !rustReady()) return;
+  flushSaves();
+  current = nextId++;
+  tests = { passed: 0, failed: 0 };
+  setBusy(true);
+  terminal.clear();
+  terminal.write("info", `Testing ${active}…\n`);
+  compilerOutput = "";
+  showDiagnostics([]);
+  const list = [...files].map(([name, content]) => ({ name, content }));
+  if (!isPython) return compiler.postMessage({ type: "test", id: current, files: list, main: active });
+  runningPython = true;
+  const modules = [...files.keys()].filter((n) => n.endsWith(".py") && (/(^|\/)test_\w*\.py$|_test\.py$/.test(n) || n === active))
+    .map((n) => n.slice(0, -3).replaceAll("/", "."));
+  if (!python) startPython();
+  python.postMessage({ type: "test", id: current, files: list, modules });
+}
+
+function showTest({ name, ok, output, ms }) {
+  tests[ok ? "passed" : "failed"]++;
+  terminal.write(ok ? "stdout" : "stderr", `${ok ? "✓" : "✗"} ${name} (${secs(ms)})\n`);
+  if (!ok && output.trim()) terminal.write("stderr", `${output.trimEnd().replace(/^/gm, "    ")}\n`);
+}
+
+function endTests(m) {
+  terminal.linkify(findLocations, (file) => files.has(file));
+  const { passed, failed } = tests;
+  terminal.write("info", m.code === 137 ? "\nStopped.\n"
+    : passed + failed === 0 ? "\nNo tests found.\n"
+      : `\n${passed} passed, ${failed} failed, in ${secs(m.ms)}.\n`);
+  finishRequest();
 }
 
 function format() {
@@ -770,6 +821,10 @@ function startPython() {
     } else if (m.type === "stdin") {
       if (pythonQueue.length) sendStdin(pythonQueue.shift());
       else pythonWaiting = true;
+    } else if (m.type === "test") {
+      showTest(m);
+    } else if (m.type === "done" && tests) {
+      endTests(m);
     } else if (m.type === "done") {
       terminal.linkify(findLocations, (file) => files.has(file));
       if (m.code !== 0) showDiagnostics(parseTraceback(pythonErrors, files));
@@ -1083,6 +1138,7 @@ $("ai").onchange = (e) => setAI(e.target.value || null);
 // ---- Start -----------------------------------------------------------------
 
 $("run").onclick = run;
+$("test").onclick = runTests;
 $("stop").onclick = stop;
 $("format").onclick = format;
 setupFileActions();

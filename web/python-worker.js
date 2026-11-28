@@ -15,10 +15,12 @@
 //   { type: "status", text }
 //   { type: "output", id, stream: "stdout" | "stderr", text }
 //   { type: "stdin", id }          the program waits for a line of input
+//   { type: "image", id, mime: "image/png", data }  a matplotlib figure, shown
+//                                  (by plt.show(), or open at the end); data
+//                                  is base64
 //   { type: "done", id, code, ms }    to "cell" also: result (the repr of
 //                                  its last expression, or null), error
 //                                  ({ ename, evalue, traceback }, or null)
-//   { type: "image", id, mime, data }  a figure a cell drew (data: base64)
 //   { type: "test", id, name, ok, output, ms }  a test's result
 //   { type: "answer", id, value }  to "complete": [{ label, type, detail }], or
 //                                  null; to "lint": the lines with problems;
@@ -51,6 +53,7 @@ async function load() {
   pyodide.setStdout(out("stdout"));
   pyodide.setStderr(out("stderr"));
   pyodide.setStdin({ stdin: readLine });
+  pyodide.globals.set("_post_image", (data) => post({ type: "image", id: current, mime: "image/png", data }));
   await pyodide.runPythonAsync(`
 import runpy, sys, traceback
 
@@ -68,13 +71,36 @@ def _run(path):
             tb = tb.tb_next
         traceback.print_exception(type(e), e, tb)
         return 1
+    finally:
+        if "matplotlib.pyplot" in sys.modules:
+            _show_plots()  # the figures still open
+
+def _use_plots():
+    """Draw matplotlib's figures without a window (Agg), and show them in
+    the output: plt.show() sends each to the page."""
+    import matplotlib
+    matplotlib.use("Agg")
+    import matplotlib.pyplot
+    matplotlib.pyplot.show = _show_plots
+
+def _show_plots(*args, **kwargs):
+    """Each open figure, as a PNG, to the page; then closed, as a window
+    would be."""
+    import base64, io
+    from matplotlib import pyplot
+    for num in pyplot.get_fignums():
+        fig = pyplot.figure(num)
+        buf = io.BytesIO()
+        fig.savefig(buf, format="png", dpi=100)
+        pyplot.close(fig)
+        _post_image(base64.b64encode(buf.getvalue()).decode("ascii"))
 
 _kernel = {"__name__": "__main__"}
 
 def _cell(code, count):
     """Run notebook cell \`code\` in the kernel's namespace; as Jupyter does,
-    its last expression's repr is the result. Its figures, if it drew with
-    matplotlib, are PNGs (base64)."""
+    its last expression's repr is the result. The figures it leaves open
+    are shown, as a run's are."""
     import ast, linecache
     name = f"<cell {count}>"
     linecache.cache[name] = (len(code), None, code.splitlines(True), name)
@@ -94,22 +120,11 @@ def _cell(code, count):
             tb = tb.tb_next
         error = {"ename": type(e).__name__, "evalue": str(e),
                  "traceback": "".join(traceback.format_exception(type(e), e, tb)).splitlines()}
+    if "matplotlib.pyplot" in sys.modules:
+        _show_plots()
     sys.stdout.flush()
     sys.stderr.flush()
-    return {"result": result, "error": error, "images": _figures()}
-
-def _figures():
-    plt = sys.modules.get("matplotlib.pyplot")
-    if not plt:
-        return []
-    import base64, io
-    images = []
-    for num in plt.get_fignums():
-        buf = io.BytesIO()
-        plt.figure(num).savefig(buf, format="png")
-        images.append(base64.b64encode(buf.getvalue()).decode())
-    plt.close("all")
-    return images
+    return {"result": result, "error": error}
 
 # jedi's kinds of names, as CodeMirror's completion types.
 _KINDS = {"module": "namespace", "class": "class", "function": "function", "keyword": "keyword",
@@ -284,6 +299,8 @@ async function run({ id, files, main }) {
   if (!pyodide) await load();
   const t0 = performance.now();
   await prepare(files);
+  // If the program imports matplotlib (installed: then it's loaded).
+  if (pyodide.loadedPackages.matplotlib) pyodide.globals.get("_use_plots")();
   const exit = pyodide.globals.get("_run")(`${SRC}/${main}`);
   post({ type: "done", id, code: exit, ms: performance.now() - t0 });
 }
@@ -294,10 +311,10 @@ async function cell({ id, files, code, count }) {
   const t0 = performance.now();
   await prepare(files);
   await pyodide.loadPackagesFromImports(code, { messageCallback: () => {}, errorCallback: () => {} });
+  if (pyodide.loadedPackages.matplotlib) pyodide.globals.get("_use_plots")();
   const value = pyodide.globals.get("_cell")(code, count);
-  const { result, error, images } = value.toJs({ dict_converter: Object.fromEntries });
+  const { result, error } = value.toJs({ dict_converter: Object.fromEntries });
   value.destroy();
-  for (const data of images) post({ type: "image", id, mime: "image/png", data });
   post({ type: "done", id, code: error ? 1 : 0, ms: performance.now() - t0, result: result ?? null, error: error ?? null });
 }
 

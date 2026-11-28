@@ -616,6 +616,32 @@ try {
     assert.match(await output(), /ModuleNotFoundError[^]*Exited with code 1/);
   });
 
+  await step("Python plots: matplotlib, added in one click, shows figures in the output", async () => {
+    await page.locator("#options summary").click();
+    await page.locator("#toolchains-open").click();
+    await page.locator("#toolchains-dialog .common button", { hasText: "matplotlib" }).click();
+    await page.locator("#toolchains-dialog .packages span", { hasText: "matplotlib" }).waitFor({ timeout: 60_000 });
+    await page.locator("#toolchains-close").click();
+    await page.locator("#examples").selectOption("plot.py");
+    await page.locator('#file-list li.active[data-name="plot.py"]').waitFor();
+    await runPython("plot.py");
+    assert.match(await output(), /Exited with code 0/);
+    // One by plt.show(), and one still open at the end, between the text.
+    await setCode("plot.py", 'import matplotlib.pyplot as plt\nplt.plot([1, 3, 2])\nplt.show()\nprint("between")\nplt.bar(["a", "b"], [2, 5])\n');
+    await runPython("plot.py");
+    await page.locator("#output", { hasText: /between[^]*Exited with code 0/ }).waitFor(); // not the last run's
+    await page.waitForFunction(() => [...document.querySelectorAll("#output img")].every((img) => img.complete));
+    const images = await page.locator("#output img").evaluateAll((imgs) => imgs.map((img) => ({
+      src: img.src.slice(0, 22), width: img.naturalWidth, before: img.nextSibling?.textContent ?? "",
+    })));
+    assert.equal(images.length, 2);
+    for (const img of images) {
+      assert.equal(img.src, "data:image/png;base64,");
+      assert.ok(img.width > 100, `a ${img.width} px plot`);
+    }
+    assert.match(images[0].before, /between/);
+  });
+
   await step("Python docs: from the Docs menu online, then installed for offline", async () => {
     const opened = page.waitForEvent("popup");
     await page.locator("#docs").selectOption("python-docs/library/index.html");
@@ -804,25 +830,33 @@ try {
     await outputs(4).locator(".out-error").waitFor({ timeout: 30_000 });
     assert.equal(await cells.nth(4).locator(".count").innerText(), "[8]");
     assert.match(await outputs(3).innerText(), /^What's your name\? \s*'Hello, Bob!'$/);
+    // A figure left open shows as an image (matplotlib was added above).
+    await cells.nth(5).locator(".cm-content").click();
+    await page.keyboard.insertText("import matplotlib.pyplot as plt\nplt.plot([1, 3, 2]);");
+    await cells.nth(5).locator(".cell-run").click();
+    await outputs(5).locator('img[src^="data:image/png;base64,"]').waitFor({ timeout: 60_000 });
     // A Markdown cell is edited on double-click, and rendered on Shift-Enter.
     await cells.nth(0).locator(".markdown-body").dblclick();
+    await cells.nth(0).locator(".cm-content").click();
     await page.keyboard.press("ControlOrMeta+a");
     await page.keyboard.insertText("## Edited, <b>escaped</b>");
     await page.keyboard.press("Shift+Enter");
     await cells.nth(0).locator("h2", { hasText: "Edited, <b>escaped</b>" }).waitFor();
-    // Saved, outputs too.
+    // Saved (once edits settle), outputs too.
+    const saved = () => page.evaluate(() => new Promise((resolve) => {
+      indexedDB.open("rust-offline").onsuccess = ({ target: { result: db } }) => {
+        db.transaction("project-files").objectStore("project-files").getAll().onsuccess = ({ target: { result } }) =>
+          resolve(JSON.parse(result.find((f) => f.name === "notebook.ipynb").content));
+      };
+    }));
+    while (!(await saved()).cells[0].source.join("").startsWith("## Edited")) await page.waitForTimeout(100);
     await page.reload();
     await waitReady();
     await outputs(2).locator(".out-result", { hasText: /^42$/ }).waitFor();
     await outputs(4).locator(".out-error", { hasText: "ZeroDivisionError" }).waitFor();
     await cells.nth(0).locator("h2", { hasText: "Edited" }).waitFor();
-    const saved = JSON.parse(await page.evaluate(() => new Promise((resolve) => {
-      indexedDB.open("rust-offline").onsuccess = ({ target: { result: db } }) => {
-        db.transaction("project-files").objectStore("project-files").getAll().onsuccess = ({ target: { result } }) =>
-          resolve(result.find((f) => f.name === "notebook.ipynb").content);
-      };
-    })));
-    assert.deepEqual(saved.cells[2].outputs[0], { output_type: "execute_result", execution_count: 6, data: { "text/plain": ["42"] }, metadata: {} });
+    await outputs(5).locator("img").waitFor();
+    assert.deepEqual((await saved()).cells[2].outputs[0], { output_type: "execute_result", execution_count: 6, data: { "text/plain": ["42"] }, metadata: {} });
     // Restart forgets the kernel's names.
     await page.locator("#notebook button", { hasText: "Restart kernel" }).click();
     await cells.nth(2).locator(".cell-run").click();

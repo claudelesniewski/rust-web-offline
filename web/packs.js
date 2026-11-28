@@ -46,6 +46,14 @@ export function withDependencies(packages, names) {
   return order;
 }
 
+/** Packages for data work, offered to add in one click. */
+export const COMMON_PACKAGES = ["numpy", "pandas", "matplotlib"];
+
+/** Of COMMON_PACKAGES, those that a lock's `packages` have and that aren't
+ *  `installed` (names, as installedPackages gives them). */
+export const commonToAdd = (packages, installed) =>
+  COMMON_PACKAGES.filter((name) => packages[name] && !installed.includes(name));
+
 /** Download `url` and check it against `sha256`; `onBytes(n)` follows it. */
 async function download(url, sha256, onBytes) {
   // Not from a cache: sw.js would serve an earlier version's file.

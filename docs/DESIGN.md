@@ -232,7 +232,7 @@ service worker (sw.js): precache the site, serve it and the installed
 - **Projects and files.** IndexedDB (`web/store.js`): projects, and their
   files keyed by project and path; saved 400 ms after each edit and when the
   page is hidden. A path is Rust module names separated by `/`, ending in
-  `.rs` (`geometry/mod.rs`) or `.py`, so files are modules in folders as Cargo would
+  `.rs` (`geometry/mod.rs`) or `.py` (or `.ipynb`, a notebook), so files are modules in folders as Cargo would
   have them; Run writes them all into `src/` and compiles the open one as
   the crate root. Version 1 of the database had one set of files: upgrading
   copies them into a project named "My project", and keeps the old store as
@@ -293,6 +293,29 @@ service worker (sw.js): precache the site, serve it and the installed
   run starts a new one. A traceback shows only the program's frames (not
   runpy's); `web/traceback.js` makes its places links, and underlines where
   the exception was raised, and the calls that led there.
+- **Plots.** If the program imports matplotlib (so Pyodide has loaded it),
+  the worker first switches it to the Agg backend (no window) and replaces
+  `matplotlib.pyplot.show`: each open figure is saved as a PNG (100 dpi),
+  closed, and posted to the page as `{ type: "image", id, mime:
+  "image/png", data }` (base64), which the terminal appends as an `<img>`
+  between the text. Figures still open when the program ends are shown so
+  too.
+- **Notebooks.** An `.ipynb` file is a project file like the others (its
+  text is nbformat 4's JSON, so sync and export carry it as it is), shown
+  by `web/notebook-view.js` in the editor's place: a list of cells, each
+  code cell with a small CodeMirror editor of its own. `web/notebook.js`
+  parses and writes the JSON (sources and texts as lists of lines, as
+  Jupyter writes them) and renders Markdown cells, a small subset of
+  Markdown with any HTML escaped. A cell runs in the Python worker
+  (`{ type: "cell" }`) in a namespace kept between cells, the kernel, with
+  the project's files in `/src` as for a run: the code is executed, then
+  its last expression, if it ends with one, evaluated, and its `repr` is
+  the cell's result. Output, `input()` (from the terminal's input line),
+  tracebacks (from the cell's frames on, its lines kept in `linecache`)
+  and plots come as a run's do, and are saved as nbformat's outputs
+  (`stream`, `execute_result`, `error`, `display_data` with
+  `image/png`). Restart kernel, like Stop, ends the worker: the next cell
+  starts a new one.
 - **Tests.** Rust's: the open file's crate is compiled with `--test`, and
   each test the harness lists (`--list`) runs in a process of its own
   (`<name> --exact`): in wasm, a panic aborts the program, as it can't

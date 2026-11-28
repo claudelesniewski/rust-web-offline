@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { withDependencies } from "../../web/packs.js";
+import { commonToAdd, withDependencies } from "../../web/packs.js";
 
 // As in a Pyodide lock file.
 const packages = {
@@ -22,4 +22,10 @@ test("package names are matched as pip does: any case, _ or . for -", () => {
 
 test("an unknown package is an error", () => {
   assert.throws(() => withDependencies(packages, ["torch"]), /no package named torch/);
+});
+
+test("the common data packages offered are those the lock has, not yet installed", () => {
+  assert.deepEqual(commonToAdd(packages, []), ["numpy", "pandas"]); // no matplotlib in this lock
+  assert.deepEqual(commonToAdd(packages, ["numpy", "six"]), ["pandas"]);
+  assert.deepEqual(commonToAdd({}, []), []);
 });

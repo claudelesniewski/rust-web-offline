@@ -113,6 +113,17 @@ name = input("What's your name? ")
 squares = [n * n for n in range(1, 6)]
 print(f"Hello, {name}! Squares: {squares}, sum {sum(squares)}")
 `,
+  "plot.py": `# A plot: add matplotlib in Options → Toolchains… (Python) first.
+import matplotlib.pyplot as plt
+
+xs = [x / 10 for x in range(-30, 31)]
+plt.plot(xs, [x * x for x in xs], label="x²")
+plt.plot(xs, [x ** 3 / 3 for x in xs], label="x³ / 3")
+plt.title("Two curves")
+plt.legend()
+plt.grid(True)
+plt.show()
+`,
   "notebook.ipynb": notebook([
     ["markdown", "# A notebook\n\nIts cells run in one Python session, the *kernel*: what one defines, the next can use. "
       + "**Shift-Enter** runs a cell and moves on; double-click this text to edit it."],

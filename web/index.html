@@ -30,11 +30,18 @@
   <select id="examples" title="Open an example as a new file">
     <option value="">Examples…</option>
   </select>
-  <select id="docs" title="Open the Rust documentation (works offline)">
+  <select id="docs" title="Open the documentation (works offline, once installed)">
     <option value="">Docs…</option>
-    <option value="docs/book/index.html">The Book</option>
-    <option value="docs/std/index.html">std library</option>
-    <option value="docs/reference/index.html">Reference</option>
+    <optgroup label="Rust" data-pack="rust">
+      <option value="docs/book/index.html">The Book</option>
+      <option value="docs/std/index.html">std library</option>
+      <option value="docs/reference/index.html">Reference</option>
+    </optgroup>
+    <optgroup label="Python" data-pack="python-docs">
+      <option value="python-docs/tutorial/index.html">Tutorial</option>
+      <option value="python-docs/library/index.html">Library</option>
+      <option value="python-docs/reference/index.html">Language reference</option>
+    </optgroup>
   </select>
   <details id="options">
     <summary>Options <span id="ai-status"></span></summary>

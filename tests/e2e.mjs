@@ -508,6 +508,21 @@ try {
     assert.match(await output(), /ModuleNotFoundError[^]*Exited with code 1/);
   });
 
+  await step("Python docs: from the Docs menu online, then installed for offline", async () => {
+    const opened = page.waitForEvent("popup");
+    await page.locator("#docs").selectOption("python-docs/library/index.html");
+    const docs = await opened;
+    await docs.locator("h1", { hasText: "The Python Standard Library" }).waitFor();
+    await docs.close();
+    await page.locator("#status", { hasText: "Python docs aren't saved for offline use" }).waitFor();
+    await page.locator("#options summary").click();
+    await page.locator("#toolchains-open").click();
+    const pack = page.locator("#toolchains-dialog .pack", { hasText: "Python docs" });
+    await pack.locator("button", { hasText: "Install" }).click();
+    await pack.locator("h4", { hasText: "Python docs · installed" }).waitFor({ timeout: 60_000 });
+    await page.locator("#toolchains-close").click();
+  });
+
   await step("Python errors: the traceback's places are links, and underlined", async () => {
     for (const [name, code] of [["calc.py", "def half(x):\n    return x / 0\n"], ["oops.py", "import calc\n\nprint(calc.half(4))\n"]]) {
       page.once("dialog", (d) => d.accept(name));
@@ -611,6 +626,14 @@ try {
     await docs.locator(".search-results a", { hasText: "HashMap" }).first().waitFor({ timeout: 30_000 });
     const missing = await docs.goto(`${url}docs/core/arch/index.html`);
     assert.equal(missing.status(), 404);
+    // Python's too.
+    await docs.goto(`${url}python-docs/tutorial/classes.html`);
+    await docs.locator("h1", { hasText: "Classes" }).waitFor();
+    await docs.goto(`${url}python-docs/search.html?q=dataclass`);
+    await docs.locator("ul.search li a", { hasText: "dataclasses" }).first().waitFor({ timeout: 30_000 });
+    const notIncluded = await docs.goto(`${url}python-docs/whatsnew/3.14.html`);
+    assert.equal(notIncluded.status(), 404);
+    assert.match(await docs.content(), /https:\/\/docs\.python\.org\/3\.14\/whatsnew\/3\.14\.html/);
     await docs.close();
   });
 } finally {

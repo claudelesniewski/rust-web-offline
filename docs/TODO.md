@@ -11,7 +11,6 @@ What Rust has and Python doesn't yet:
   type-aware, with the compiler and the docs).
 - AI suggestions (their prompt and check are Rust's).
 - Go to definition (F12) and Format.
-- Offline docs: the Python documentation, searchable.
 
 ## IDE features
 

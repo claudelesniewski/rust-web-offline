@@ -33,8 +33,10 @@ library run as WebAssembly on your machine; nothing is sent to a server.
   download when turned on) runs on the device and suggests the rest of the
   line, shown greyed out; Tab takes it (Shift-Tab when a completion list is
   open too). Small means often wrong.
-- Offline documentation: the Rust Book, the Reference, and the std, core and
-  alloc API docs with search (**Docs** menu).
+- Offline documentation (**Docs** menu): the Rust Book, the Reference, and
+  the std, core and alloc API docs with search; and Python's tutorial,
+  library and language reference with search (a 6 MB pack, **Python docs**,
+  in Toolchains; online they work without it).
 
 Setup and deployment: [docs/DEPLOY.md](docs/DEPLOY.md). How it works and why:
 [docs/DESIGN.md](docs/DESIGN.md).

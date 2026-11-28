@@ -92,6 +92,13 @@ service worker (sw.js): precache the site, serve it and the installed
   [fzstd](https://github.com/101arrowz/fzstd) when one of its pages is first
   asked for and keeping the last four in memory. Pages not included get a
   page linking to doc.rust-lang.org.
+
+  Python's docs, the HTML archive of Python 3.14.2 (Pyodide's version,
+  76 MB), are packed the same way, without the pages' reStructuredText
+  sources, the release notes and the C API: 500 files, 43 MB, 6 MB packed,
+  served under `python-docs/` and linking to docs.python.org. They are a
+  pack of their own ("Python docs"), as not everyone writing Python wants
+  them offline; Sphinx's search works offline as it is.
 - **Completion.** Keywords, snippets, common std names and methods, and the
   file's words (`vendor/completion.js`), by context. After a dot, with
   type-aware completion on (`web/types.js`): the word there is replaced by a
@@ -211,7 +218,7 @@ service worker (sw.js): precache the site, serve it and the installed
 - Memory: rustc reserves up to 1 GiB of address space (512 MiB on devices
   reporting under 4 GB of RAM). Very large programs may run out.
 - Python: only packages that Pyodide builds for WebAssembly (no PyTorch, for
-  one); no completion or docs yet.
+  one); no completion yet.
 - Standard library only; one crate per run; programs are wasm, so no
   processes, networking or real filesystem.
 - The toolchain is a nightly using the Cranelift backend. Its author reports

@@ -1,8 +1,11 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import { decompress } from "fzstd";
+import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { dirname, join } from "node:path";
 import { zstdCompressSync } from "node:zlib";
-import { pack, typeIndex } from "../../scripts/pack-docs.mjs";
+import { SETS, pack, selectFiles, typeIndex } from "../../scripts/pack-docs.mjs";
 import { createDocs } from "../../web/docs.js";
 
 const enc = new TextEncoder();
@@ -18,7 +21,7 @@ function serveFrom(files) {
   const { chunks, files: index } = pack(files, 20);
   const store = { "index.json.zst": zstdCompressSync(JSON.stringify({ chunks: chunks.map((_, i) => `${i}.zst`), files: index })) };
   chunks.forEach((c, i) => { store[`${i}.zst`] = c; });
-  return createDocs({ read: async (name) => new Uint8Array(store[name]), decompress });
+  return createDocs({ read: async (name) => new Uint8Array(store[name]), decompress, online: "https://doc.rust-lang.org/nightly/" });
 }
 
 test("every packed file is served back with its type", async () => {
@@ -57,4 +60,22 @@ test("the type index finds pages by full path and by name, preferring std", () =
   assert.equal(index.Iter, "std/slice/struct.Iter.html");
   assert.equal(index["std::collections::hash_map::Iter"], "std/collections/hash_map/struct.Iter.html");
   assert.equal(Object.keys(index).length, 8);
+});
+
+test("what of each docs is packed", () => {
+  const root = mkdtempSync(join(tmpdir(), "docs-"));
+  const paths = ["index.html", "releases.html", "std/index.html", "core/arch/x86/index.html", "rustc/index.html",
+    "library/os.html", "_static/basic.css", "_sources/library/os.rst.txt", "whatsnew/3.14.html", "searchindex.js"];
+  for (const p of paths) {
+    mkdirSync(dirname(join(root, p)), { recursive: true });
+    writeFileSync(join(root, p), "");
+  }
+  for (const d of SETS.rust.dirs) mkdirSync(join(root, d), { recursive: true });
+  try {
+    assert.deepEqual(selectFiles(root, SETS.rust), ["index.html", "searchindex.js", "std/index.html"]);
+    assert.deepEqual(selectFiles(root, SETS.python), ["_static/basic.css", "core/arch/x86/index.html", "index.html",
+      "library/os.html", "releases.html", "rustc/index.html", "searchindex.js", "std/index.html"]);
+  } finally {
+    rmSync(root, { recursive: true });
+  }
 });

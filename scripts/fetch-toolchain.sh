@@ -13,6 +13,7 @@
 # Documentation: the rust-docs component of the same nightly, from
 # static.rust-lang.org (MIT/Apache-2.0; the Book and Reference are
 # MIT/Apache-2.0 too). scripts/pack-docs.mjs picks what is served offline.
+# Python documentation: that of Python 3.14.2, Pyodide's (PSF licence).
 # Test model: a 1 MB llama.cpp test model (MIT), which tests/e2e.mjs uses in
 # place of the real one to test AI suggestions. Test Pyodide: the Python
 # pack's files (as in web/packs.json) and a small package, which tests/e2e.mjs
@@ -35,6 +36,7 @@ COMMIT=47377dd2ff6b725548e7847e7bd9a37efeed2c96
 NIGHTLY=2026-10-19
 BASE="https://raw.githubusercontent.com/ryancbuckley/rust-playground-inbrowser-site/$COMMIT"
 DOCS="https://static.rust-lang.org/dist/$NIGHTLY/rust-docs-nightly-x86_64-unknown-linux-gnu.tar.xz"
+PYTHON_DOCS="https://www.python.org/ftp/python/doc/3.14.2/python-3.14.2-docs-html.tar.bz2"
 PYODIDE="https://cdn.jsdelivr.net/pyodide/v314.0.8/full"
 TEST_MODEL="https://huggingface.co/ggml-org/models-moved/resolve/499bc8821c6b12b4e53c5bffcb21ec206f212d81/tinyllamas/stories260K.gguf"
 # sha256, path under build/cache/toolchain, and URL if not $BASE/path.
@@ -48,6 +50,7 @@ ad25ce898e25bf67229d78981278f61b0a0dbb29964c946f46d0fb35632ce3c0  browser-kernel
 3b7f7eacc8acf852bec18dcb0f6dabad7390551a25b90da8edb4071ceb1b5920  browser-kernel/thread-worker.js
 62c7a1e35f56406896d7aa7ca52d0cc0d272ac022b5d2796e7d6905db8a3636a  browser-kernel/LICENSE
 496eb961421f63cf451b850b6f1a0c23acb0fea296a89a79ea197eac50b77457  rust-docs.tar.xz  $DOCS
+d72a50b427913492be4c8eacfa66618096be9163bf27b97a651fd96bfec4df3d  python-docs.tar.bz2  $PYTHON_DOCS
 270cba1bd5109f42d03350f60406024560464db173c0e387d91f0426d3bd256d  test/stories260K.gguf  $TEST_MODEL
 1bb8cc14f9405aaa7cd4e00c12edd0a8539de9cc026618d6ee5a9663f367dc70  test/pyodide/pyodide.mjs  $PYODIDE/pyodide.mjs
 22514b8be6980e28a02c8b1d6387ce8dfe666fc4edf8d547cff5dce29ff4d972  test/pyodide/pyodide.asm.mjs  $PYODIDE/pyodide.asm.mjs

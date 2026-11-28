@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 import { createGitHub } from "../../web/github.js";
 import { cargoToml } from "../../web/languages.js";
-import { SyncConflict, changedSince, folder, layoutOf, pull, push } from "../../web/sync.js";
+import { SyncConflict, changedSince, changes, folder, layoutOf, outgoing, pull, push } from "../../web/sync.js";
 import { createFakeGitHub } from "../fake-github.mjs";
 
 /** A repository with a README, and a client for it. */
@@ -91,4 +91,25 @@ test("a Python project's files are its folder's: no src/, no Cargo.toml", async 
   assert.deepEqual(files, { "main.py": "print(2)", "lib/util.py": "x = 1" });
   link.head = await push(gh, { ...link, head }, project({ "main.py": "print(3)" }), { message: "2", project: "p" });
   assert.deepEqual(fake.files(), { "README.md": "# Code\n", "py/main.py": "print(3)", "py/notes.txt": "not a project file" });
+});
+
+test("changes between two sets of files: added, modified and deleted, by name", () => {
+  assert.deepEqual(changes({ "b.rs": "1", "a.rs": "x", "same.rs": "s" }, { "a.rs": "y", "c.rs": "new", "same.rs": "s" }), [
+    { name: "a.rs", status: "modified", before: "x", after: "y" },
+    { name: "b.rs", status: "deleted", before: "1", after: "" },
+    { name: "c.rs", status: "added", before: "", after: "new" },
+  ]);
+  assert.deepEqual(changes({ "a.rs": "" }, { "a.rs": "" }), []);
+  assert.deepEqual(changes({}, { "e.rs": "" }), [{ name: "e.rs", status: "added", before: "", after: "" }]);
+});
+
+test("what a push would change on GitHub, before pushing", async () => {
+  const { fake, gh } = setup();
+  const link = { branch: "main", dir: "" };
+  assert.deepEqual(await outgoing(gh, link, project({ "main.rs": "a" })), [{ name: "main.rs", status: "added", before: "", after: "a" }]);
+  link.head = await push(gh, link, project({ "main.rs": "a", "old.rs": "b" }), { message: "1", project: "p" });
+  assert.deepEqual((await outgoing(gh, link, project({ "main.rs": "a2" }))).map((c) => [c.name, c.status]),
+    [["main.rs", "modified"], ["old.rs", "deleted"]]);
+  fake.commitFiles({ "src/main.rs": "changed on GitHub" });
+  await assert.rejects(outgoing(gh, link, project({ "main.rs": "a2" })), SyncConflict);
 });

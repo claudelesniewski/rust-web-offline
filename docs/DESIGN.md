@@ -249,9 +249,13 @@ service worker (sw.js): precache the site, serve it and the installed
   the branch's head, adding the layout's manifest (`Cargo.toml`) if there
   is none, and leaves all else as it was; it refuses
   if the branch moved since the last sync (or, before the first, has files
-  there already): pull first. Pull replaces the project's files, asking
-  first if there are changes not pushed. What was last synced (commit and
-  files) is kept per project, to tell changes here from changes there.
+  there already): pull first. Pull replaces the project's files. Both show
+  first what they would change (`sync.changes(before, after)`, which push
+  also commits from: GitHub's files to the project's, or the reverse), to
+  confirm, each file's diff in a read-only `@codemirror/merge` view
+  (`createDiffView` in `vendor/editor.js`). What was last synced (commit and
+  files) is kept per project, to tell changes here from changes there; the
+  same view shows the changes here since, offline too.
 
 - **Toolchains ("packs").** Each language's toolchain is a pack, installed
   from the Toolchains dialog rather than precached with the site (2 MB):

@@ -48,12 +48,25 @@ export async function pull(gh, link) {
   return { head, files: unprefixed(files, layout) };
 }
 
-/** Commit `files` (a Map) to the link's branch; returns the new head. Throws
- *  SyncConflict if the branch moved on since the link's head (or, before a
- *  first sync, if it already has files there): pull first. */
-export async function push(gh, link, files, { message, project }) {
+/** How files `before` become files `after` (both { name: content }), by
+ *  name: [{ name, status: "added" | "modified" | "deleted", before, after }],
+ *  where an added file's `before` and a deleted one's `after` are "". */
+export function changes(before, after) {
+  const names = [...new Set([...Object.keys(before), ...Object.keys(after)])].sort();
+  return names.filter((n) => before[n] !== after[n]).map((name) => ({
+    name,
+    status: !(name in before) ? "added" : !(name in after) ? "deleted" : "modified",
+    before: before[name] ?? "",
+    after: after[name] ?? "",
+  }));
+}
+
+/** The branch's head where files laid out as `layout` would be pushed, the
+ *  names in its folder, and its project files: { head, names, theirs }.
+ *  Throws SyncConflict if the branch moved on since the link's head (or,
+ *  before a first sync, if it already has files there): pull first. */
+async function pushTarget(gh, link, layout) {
   const at = folder(link.dir);
-  const layout = layoutOf([...files.keys()]);
   const head = await gh.head(link.branch);
   if (link.head && head !== link.head) throw new SyncConflict("The repository has changed since you last synced: pull first.");
   const { names, files: remote } = await gh.read(head, at, (all) => projectFiles(all, layout));
@@ -61,10 +74,30 @@ export async function push(gh, link, files, { message, project }) {
   if (!link.head && Object.keys(theirs).length) {
     throw new SyncConflict(`The repository already has files in ${at + layout.src || "its top folder"}: pull them first.`);
   }
+  return { head, names, theirs };
+}
+
+/** What pushing `files` (a Map) would change of the project's files on the
+ *  link's branch, as changes(). Throws as push() does. */
+export async function outgoing(gh, link, files) {
+  const { theirs } = await pushTarget(gh, link, layoutOf([...files.keys()]));
+  return changes(theirs, Object.fromEntries(files));
+}
+
+/** Commit `files` (a Map) to the link's branch; returns the new head. Throws
+ *  SyncConflict if the branch moved on since the link's head (or, before a
+ *  first sync, if it already has files there): pull first. */
+export async function push(gh, link, files, { message, project }) {
+  const at = folder(link.dir);
+  const layout = layoutOf([...files.keys()]);
+  const { head, names, theirs } = await pushTarget(gh, link, layout);
   const write = {};
-  for (const [name, content] of files) if (theirs[name] !== content) write[at + layout.src + name] = content;
+  const remove = [];
+  for (const { name, status, after } of changes(theirs, Object.fromEntries(files))) {
+    if (status === "deleted") remove.push(at + layout.src + name);
+    else write[at + layout.src + name] = after;
+  }
   if (layout.manifest && !names.includes(layout.manifest)) write[at + layout.manifest] = layout.makeManifest(project);
-  const remove = Object.keys(theirs).filter((name) => !files.has(name)).map((name) => at + layout.src + name);
   if (!Object.keys(write).length && !remove.length) return head; // nothing to commit
   return gh.commit(link.branch, head, { write, remove, message });
 }

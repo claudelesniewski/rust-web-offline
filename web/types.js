@@ -130,6 +130,22 @@ export function publicItems(file) {
     .map(([, kind, label]) => ({ label, type: kinds[kind] }));
 }
 
+/** The stable items on a rustdoc module page (std/fs/index.html), as
+ *  completion options: [{ label, type, detail, info }]. */
+export function moduleItems(html) {
+  const kinds = { fn: "function", macro: "function", struct: "type", enum: "type", trait: "type", type: "type",
+    union: "type", constant: "constant", static: "constant", mod: "namespace", primitive: "type" };
+  const items = [];
+  for (const [, dt, dd] of html.matchAll(/<dt>([\s\S]*?)<\/dt><dd>([\s\S]*?)<\/dd>/g)) {
+    const link = /<a class="(\w+)" href="(?:(?:\w+)\.(\w+)\.html|(\w+)\/index\.html)"/.exec(dt);
+    if (!link || /stab unstable|stab deprecated/.test(dt) || !kinds[link[1]]) continue;
+    const label = link[2] ?? link[3];
+    items.push({ label: link[1] === "macro" ? `${label}!` : label, type: kinds[link[1]], detail: link[1],
+      info: decode(dd).replace(/\s+/g, " ").trim() || undefined });
+  }
+  return items;
+}
+
 /** Whether rustc's output has an error (not a warning) on line `line`
  *  (from 1) of `file`. */
 export function errorOnLine(output, file, line, { coded = false } = {}) {
@@ -164,15 +180,27 @@ export function createTypeCompletion({ check, fetchText }) {
     return pages.get(page);
   }
 
+  /** The items of std module `path` (as `std::fs`, or `fs` as `use
+   *  std::fs` brings it), from its docs page; null if it has none. */
+  async function stdModule(path) {
+    const parts = path.split("::");
+    const crate = ["std", "core", "alloc"].includes(parts[0]) ? parts.shift() : "std";
+    const page = `docs/${crate}/${parts.join("/")}/index.html`;
+    if (!pages.has(page)) pages.set(page, moduleItems(await fetchText(page)));
+    const items = pages.get(page);
+    return items.length ? items : null;
+  }
+
   /** What follows `path::` (as `geometry`, `std::vec::Vec`): a project
-   *  module's public items; a type's associated functions, and an enum's
-   *  variants; null if not known (as a std module). */
+   *  module's public items; a std module's items; a type's associated
+   *  functions, and an enum's variants; null if not known. */
   async function pathItems(path, files) {
     const sources = files.map((f) => f.content);
     const name = path.split("::").pop();
     const module = files.find((f) => f.name === `${name}.rs` || f.name.endsWith(`/${name}.rs`) || f.name.endsWith(`${name}/mod.rs`));
     if (module) return publicItems(module.content);
-    const functions = /^[A-Z]/.test(name) ? await functionsOf(path, sources) : null;
+    if (!/^[A-Z]/.test(name)) return stdModule(path);
+    const functions = await functionsOf(path, sources);
     if (!functions) return null;
     return [
       ...variants(sources, name).map((v) => ({ label: v, type: "enum", detail: name })),

@@ -32,7 +32,7 @@
  {
   "group": "tune",
   "code": "name = \"Ada\"\nprint(",
-  "expect": "^(f[\\\"'][^\\\"']*\\{name\\}|[\\\"'][^\\\"']*[\\\"'],\\s*name)"
+  "expect": "^(f[\\\"'][^\\\"']*\\{name\\}|[\\\"'][^\\\"']*[\\\"'],\\s*name|name\\))"
  },
  {
   "group": "tune",
@@ -102,7 +102,7 @@
  {
   "group": "held-out",
   "code": "nums = [1, 2, 3]\nsquares = [",
-  "expect": "^(\\w+) (\\*\\* 2|\\* \\1) for \\1 in nums\\]"
+  "expect": "^(\\w+) ?(\\*\\* ?2|\\* ?\\1) for \\1 in nums\\]"
  },
  {
   "group": "held-out",

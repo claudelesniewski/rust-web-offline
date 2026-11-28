@@ -56,7 +56,7 @@ export function withBlockBody(source, line) {
  * its member, up to `retries` times. Returns `suggest(doc, pos, signal)`.
  */
 export function createSuggester({ complete, ai, members = null, check = null, main = () => "main.rs", others = () => [],
-  fixes = 2, retries = 1 }) {
+  fixes = 2, retries = 1, fim = false }) {
   const cut = (text) => withoutComment(text, ai);
   return async function suggest(doc, pos, signal) {
     const prefix = doc.slice(0, pos);
@@ -91,6 +91,7 @@ export function createSuggester({ complete, ai, members = null, check = null, ma
         repo: ai.repo,
         file: ai.path(main()),
         others: others().map((o) => ({ ...o, name: ai.path(o.name) })),
+        suffix: fim ? suffix : null,
       });
       const text = cut(line) !== line ? raw : cut(raw);
       if (!text.trim() || signal?.aborted) return "";

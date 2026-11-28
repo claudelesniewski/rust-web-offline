@@ -188,8 +188,24 @@ service worker (sw.js): precache the site, serve it and the installed
   did no better; up to 48 tokens a suggestion, rather than 32, got one more
   Python line right that was cut before its end.
 
-  Qwen2.5-Coder-0.5B, a much better code model, is
-  430 MB at 4 bits, too much for small Chromebooks. Chat-tuned variants
+  Larger models, on the same benchmark (`MODEL=<file.gguf> FORMAT=<format>
+  node bench/ai.mjs`), with the toolchain's help as above; FIM is filling in
+  the middle, which Qwen2.5-Coder was trained for (`<|fim_prefix|>` …), and
+  SmolLM2 wasn't:
+
+  | | download | Rust | Python | time (Rust, Python) |
+  | --- | --- | --- | --- | --- |
+  | SmolLM2-135M, 8 bits (now) | 145 MB | 12 (3 held out, 1 multi-file) | 22 (6, 3) | 0.55 s, 0.2 s |
+  | SmolLM2-360M, 8 bits | 386 MB | 20 (6, 2) | 26 (8, 3) | 1.2 s, 0.45 s |
+  | Qwen2.5-Coder-0.5B, 4 bits (Q4_K_M) | 398 MB | 22 (7, 2) | 17 (5, 3) | 1.05 s, 0.6 s |
+  | and FIM | 398 MB | 25 (7, 3) | 23 (7, 3) | 0.95 s, 0.6 s |
+  | Qwen2.5-Coder-0.5B, 8 bits, and FIM | 531 MB | 25 (7, 3) | 24 (7, 3) | 0.8 s, 0.5 s |
+  | Qwen2.5-Coder-1.5B, 4 bits, and FIM | 986 MB | 25 (7, 3) | 22 (6, 3) | 1.9 s, 1.3 s |
+
+  (Times on 4 cores; Qwen's 8 bits are faster than its 4, which take more
+  work to unpack in wasm.) So a model of about 400 to 500 MB does much
+  better: twice as many Rust lines right, with the held-out ones too, at
+  two to three times the time. A larger one adds nothing here. Chat-tuned variants
   (SmolLM2-135M-Instruct, kimi-coder-135m) complete code no better (5 of 12
   test lines, as the base model) and answer Rust questions confidently
   wrongly, so offline chat would need a much larger model.

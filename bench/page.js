@@ -97,6 +97,7 @@ export async function run(suites, configs) {
           others: () => others,
           fixes: config.fixes,
           retries: config.retries,
+          fim: config.fim,
         });
         const doc = documentOf(language, code);
         const t0 = performance.now();

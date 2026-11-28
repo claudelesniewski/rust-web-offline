@@ -17,6 +17,18 @@ const OTHERS = 2000;
 /** How much of the code before the cursor the model sees, in characters. */
 const CONTEXT = 1500;
 
+/** How each kind of model was shown repositories in training: StarCoder2's
+ *  data (SmolLM2), or Qwen2.5-Coder's; and, for those trained so, the code
+ *  after the cursor too (fill in the middle). */
+const FORMATS = {
+  starcoder2: { repo: (name) => `<repo_name>${name}`, file: (path, text) => `<file_sep>${path}\n${text}` },
+  qwen: {
+    repo: (name) => `<|repo_name|>${name}\n`,
+    file: (path, text) => `<|file_sep|>${path}\n${text}\n`,
+    fim: (path, before, after) => `<|file_sep|>${path}\n<|fim_prefix|>${before}<|fim_suffix|>${after}<|fim_middle|>`,
+  },
+};
+
 const hex = (buf) => [...new Uint8Array(buf)].map((b) => b.toString(16).padStart(2, "0")).join("");
 
 /** The response for `url` from the cache, downloading it first if needed. */
@@ -80,20 +92,23 @@ export async function loadModel(onProgress) {
      *  path in repository `repo`) ends in, or ""; `grammar` (GBNF)
      *  constrains it. `others` are the project's other files ([{ name (a
      *  path), content }]), for context. */
-    async complete(prefix, signal, { grammar, repo = "rust-examples", file = "src/main.rs", others = [] } = {}) {
+    async complete(prefix, signal, { grammar, repo = "rust-examples", file = "src/main.rs", others = [], suffix = null } = {}) {
       // A space at the end tokenizes badly (words' tokens start with one):
       // let the model write it instead. Measured on 18 lines: dropping all
       // the indentation instead made the model start new items (4 right,
       // against 7); keeping it all, 6.
       const typed = prefix.endsWith(" ") ? " " : "";
-      let prompt = `<repo_name>${repo}`;
+      const format = FORMATS[index.model.format ?? "starcoder2"];
+      let prompt = format.repo(repo);
       let room = OTHERS;
       for (const other of others) {
         if (room <= 0) break;
-        prompt += `<file_sep>${other.name}\n${other.content.slice(0, room)}`;
+        prompt += format.file(other.name, other.content.slice(0, room));
         room -= other.content.length;
       }
-      prompt += `<file_sep>${file}\n${prefix.slice(-CONTEXT, prefix.length - typed.length)}`;
+      const before = prefix.slice(-CONTEXT, prefix.length - typed.length);
+      prompt += suffix !== null && format.fim ? format.fim(file, before, suffix.slice(0, CONTEXT))
+        : format.file(file, before).replace(/\n$/, "");
       const r = await wllama.createCompletion({
         prompt,
         // 48: at 32, a long line was cut before its end, and failed the check

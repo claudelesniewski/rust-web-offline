@@ -109,9 +109,10 @@ service worker (sw.js): precache the site, serve it and the installed
   found through `docs/types.json` (made by `pack-docs.mjs`), or, for your own
   types, from your `impl` blocks. If the type can't be found (e.g. the code
   doesn't parse), the plain list is offered. After `::`, no compiling: a
-  project module's (`geometry.rs`) `pub` items, or a type's associated
-  functions (those not taking `self`, from its docs page or `impl` blocks)
-  and an enum's variants. With AI turned on: `web/lm.js` downloads
+  project module's (`geometry.rs`) `pub` items, a std module's (`fs::`,
+  `std::env::`: the stable items its docs page lists), or a type's
+  associated functions (those not taking `self`, from its docs page or
+  `impl` blocks) and an enum's variants. With AI turned on: `web/lm.js` downloads
   [wllama](https://github.com/ngxson/wllama) (llama.cpp in wasm, 11 MB, built
   into the site but not precached) into a cache of its own, which the
   service worker keeps across versions; the model is a pack (packs.json,

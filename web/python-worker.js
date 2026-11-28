@@ -8,6 +8,9 @@
 //   { type: "complete", id, files, name, line, col }  (line from 1, col from 0)
 //   { type: "lint", id, source }
 //   { type: "hover", id, files, name, line, col }
+//   { type: "cell", id, files, code, count }   run a notebook's cell in the
+//                                          kernel: a namespace kept between
+//                                          cells, until the worker ends
 // Messages to the page:
 //   { type: "status", text }
 //   { type: "output", id, stream: "stdout" | "stderr", text }
@@ -15,7 +18,9 @@
 //   { type: "image", id, mime: "image/png", data }  a matplotlib figure, shown
 //                                  (by plt.show(), or open at the end); data
 //                                  is base64
-//   { type: "done", id, code, ms }
+//   { type: "done", id, code, ms }    to "cell" also: result (the repr of
+//                                  its last expression, or null), error
+//                                  ({ ename, evalue, traceback }, or null)
 //   { type: "test", id, name, ok, output, ms }  a test's result
 //   { type: "answer", id, value }  to "complete": [{ label, type, detail }], or
 //                                  null; to "lint": the lines with problems;
@@ -89,6 +94,37 @@ def _show_plots(*args, **kwargs):
         fig.savefig(buf, format="png", dpi=100)
         pyplot.close(fig)
         _post_image(base64.b64encode(buf.getvalue()).decode("ascii"))
+
+_kernel = {"__name__": "__main__"}
+
+def _cell(code, count):
+    """Run notebook cell \`code\` in the kernel's namespace; as Jupyter does,
+    its last expression's repr is the result. The figures it leaves open
+    are shown, as a run's are."""
+    import ast, linecache
+    name = f"<cell {count}>"
+    linecache.cache[name] = (len(code), None, code.splitlines(True), name)
+    result = error = None
+    try:
+        tree = ast.parse(code, name)
+        last = tree.body.pop() if tree.body and isinstance(tree.body[-1], ast.Expr) else None
+        exec(compile(tree, name, "exec"), _kernel)
+        if last:
+            value = eval(compile(ast.Expression(last.value), name, "eval"), _kernel)
+            if value is not None:
+                result = repr(value)
+    except BaseException as e:
+        # From the cell's code on, or the project's.
+        tb = e.__traceback__
+        while tb and tb.tb_frame.f_code.co_filename != name and not tb.tb_frame.f_code.co_filename.startswith("${SRC}/"):
+            tb = tb.tb_next
+        error = {"ename": type(e).__name__, "evalue": str(e),
+                 "traceback": "".join(traceback.format_exception(type(e), e, tb)).splitlines()}
+    if "matplotlib.pyplot" in sys.modules:
+        _show_plots()
+    sys.stdout.flush()
+    sys.stderr.flush()
+    return {"result": result, "error": error}
 
 # jedi's kinds of names, as CodeMirror's completion types.
 _KINDS = {"module": "namespace", "class": "class", "function": "function", "keyword": "keyword",
@@ -269,6 +305,19 @@ async function run({ id, files, main }) {
   post({ type: "done", id, code: exit, ms: performance.now() - t0 });
 }
 
+async function cell({ id, files, code, count }) {
+  current = id;
+  if (!pyodide) await load();
+  const t0 = performance.now();
+  await prepare(files);
+  await pyodide.loadPackagesFromImports(code, { messageCallback: () => {}, errorCallback: () => {} });
+  if (pyodide.loadedPackages.matplotlib) pyodide.globals.get("_use_plots")();
+  const value = pyodide.globals.get("_cell")(code, count);
+  const { result, error } = value.toJs({ dict_converter: Object.fromEntries });
+  value.destroy();
+  post({ type: "done", id, code: error ? 1 : 0, ms: performance.now() - t0, result: result ?? null, error: error ?? null });
+}
+
 /** `fn` (_complete or _hover) at a place in a file of the project, by jedi
  *  (a package of the Python pack); null if it isn't installed. */
 async function withJedi(fn, { files, name, line, col }) {
@@ -299,6 +348,8 @@ onmessage = ({ data: m }) => {
     queue = queue.then(() => run(m)).catch((e) => post({ type: "error", id: m.id, text: String(e?.message ?? e) }));
   } else if (m.type === "test") {
     queue = queue.then(() => test(m)).catch((e) => post({ type: "error", id: m.id, text: String(e?.message ?? e) }));
+  } else if (m.type === "cell") {
+    queue = queue.then(() => cell(m)).catch((e) => post({ type: "error", id: m.id, text: String(e?.message ?? e) }));
   } else if (m.type === "complete") {
     queue = queue.then(() => answer(m, (r) => withJedi("_complete", r)));
   } else if (m.type === "hover") {

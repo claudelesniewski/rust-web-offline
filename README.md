@@ -37,6 +37,11 @@ library run as WebAssembly on your machine; nothing is sent to a server.
   pandas and matplotlib in one click), or remove them. matplotlib's plots
   (`plt.show()`) show in the output, as images. **Format** for `.py` files uses Ruff (10 MB, installed when
   first used), which, once installed, also lints them as you type.
+- Jupyter notebooks (`.ipynb`, in the Examples menu too): code cells run
+  in one Python session (Shift-Enter runs a cell and moves on; **Run all**,
+  **Restart kernel**), showing their output, last expression's value,
+  tracebacks and plots; Markdown cells are rendered, and edited on
+  double-click. Outputs are saved in the notebook, as Jupyter saves them.
 - Optional Vim key bindings (in **Options**), with `:w` to save.
 - Type-aware completion after `.` (on by default, in **Options**): in Rust,
   the compiler finds the type, and the offline docs list its methods (and

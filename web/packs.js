@@ -13,10 +13,11 @@ const PACKAGE = "X-Package";
 const hex = (buf) => [...new Uint8Array(buf)].map((b) => b.toString(16).padStart(2, "0")).join("");
 
 /** The packs that can be installed: { id: { title, about, base, dir, files,
- *  lock?, packages?, default?, model? } }. Default packs are installed
+ *  lock?, packages?, default?, model?, recommended? } }. Default packs are installed
  *  unless removed; `packages`, from the lock, are installed with the pack.
  *  A pack with `model` ({ format, fim? }, as web/lm.js reads them) is a
- *  model for AI suggestions, its one file the model. */
+ *  model for AI suggestions, its one file the model; the `recommended` one
+ *  is listed first. */
 export async function available() {
   return (await fetch("packs.json")).json();
 }

@@ -118,6 +118,31 @@ test("after ::, a module's public items, a type's associated functions, an enum'
   assert.deepEqual((await at("let a = geometry::")).map((o) => o.label), ["area"]);
   assert.deepEqual((await at("let c = Config::")).map((o) => o.label), ["load"]); // not the method
   assert.deepEqual((await at("let v = Vec::")).map((o) => o.label), ["new"]);
-  assert.equal(await at("let t = std::fs::"), null); // a std module: not known
+  assert.equal(await at("let t = std::fs::"), null); // a std module without a docs page here
   assert.equal(await at("let t = Nowhere::"), null);
+});
+
+test("after a std module's ::, its stable items, from its docs page", async () => {
+  const { moduleItems } = await import("../../web/types.js");
+  const page = '<dl class="item-table">'
+    + '<dt><a class="struct" href="struct.File.html" title="struct std::fs::File">File</a></dt><dd>An object providing access to an open file.</dd>'
+    + '<dt><a class="fn" href="fn.read_to_string.html" title="fn std::fs::read_to_string">read_<wbr>to_<wbr>string</a></dt><dd>Reads the entire contents of a file into a string.</dd>'
+    + '<dt><a class="fn" href="fn.exists.html" title="fn std::fs::exists">exists</a><wbr><span class="stab unstable" title="">Experimental</span></dt><dd>x</dd>'
+    + '<dt><a class="mod" href="unix/index.html" title="mod std::fs::unix">unix</a></dt><dd></dd>'
+    + '<dt><a class="macro" href="macro.vec.html" title="macro std::vec">vec</a></dt><dd>Creates a Vec.</dd></dl>';
+  assert.deepEqual(moduleItems(page), [
+    { label: "File", type: "type", detail: "struct", info: "An object providing access to an open file." },
+    { label: "read_to_string", type: "function", detail: "fn", info: "Reads the entire contents of a file into a string." },
+    { label: "unix", type: "namespace", detail: "mod", info: undefined },
+    { label: "vec!", type: "function", detail: "macro", info: "Creates a Vec." },
+  ]);
+  const complete = createTypeCompletion({
+    check: async () => "",
+    fetchText: async (path) => (path === "docs/std/fs/index.html" ? page : "not available offline"),
+  });
+  const files = [{ name: "main.rs", content: "" }];
+  const at = (doc) => complete(doc, doc.length, doc.length, files, "main.rs");
+  assert.deepEqual((await at("let s = fs::")).map((o) => o.label), ["File", "read_to_string", "unix", "vec!"]);
+  assert.equal((await at("let s = std::fs::")).length, 4);
+  assert.equal(await at("let s = nowhere::"), null);
 });

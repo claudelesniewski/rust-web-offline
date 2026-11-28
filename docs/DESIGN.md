@@ -109,9 +109,10 @@ service worker (sw.js): precache the site, serve it and the installed
   found through `docs/types.json` (made by `pack-docs.mjs`), or, for your own
   types, from your `impl` blocks. If the type can't be found (e.g. the code
   doesn't parse), the plain list is offered. After `::`, no compiling: a
-  project module's (`geometry.rs`) `pub` items, or a type's associated
-  functions (those not taking `self`, from its docs page or `impl` blocks)
-  and an enum's variants. With AI turned on: `web/lm.js` downloads
+  project module's (`geometry.rs`) `pub` items, a std module's (`fs::`,
+  `std::env::`: the stable items its docs page lists), or a type's
+  associated functions (those not taking `self`, from its docs page or
+  `impl` blocks) and an enum's variants. With AI turned on: `web/lm.js` downloads
   [wllama](https://github.com/ngxson/wllama) (llama.cpp in wasm, 11 MB, built
   into the site but not precached) into a cache of its own, which the
   service worker keeps across versions; the model is a pack (packs.json,
@@ -274,7 +275,10 @@ service worker (sw.js): precache the site, serve it and the installed
   under `packs/python/`. Ruff's pack is its WebAssembly build (10 MB, from
   npm via the same CDN), which `web/ruff.js` loads to format Python as
   Black would; Pyodide has no formatter, and Ruff's is fast and small
-  enough to be a pack of its own.
+  enough to be a pack of its own. Once it's installed (never asked for
+  this), the open `.py` file is also linted with Ruff's default rules half a
+  second after edits stop: rules' findings are warnings, syntax errors
+  errors, replacing the diagnostics the edit cleared (a run's included).
   Its packages come from Pyodide's lock file (`pyodide-lock.json`), which
   names each one's file, SHA-256 and dependencies; installing one fetches
   those too, from the same CDN. Separate builds of the site per language
@@ -304,6 +308,13 @@ service worker (sw.js): precache the site, serve it and the installed
   make the probe a method call, whose error doesn't name the type), with
   its signature and summary. In Python, jedi's `help` gives the signature
   and docstring, in the Python worker.
+- **Rename.** `web/rename.js`, like go to definition, matches text: F2
+  replaces the word's whole-word uses in every file of the open file's
+  language, skipping comments and strings (in Rust, raw and byte strings,
+  chars and lifetimes; in Python, triple-quoted and prefixed strings,
+  f-strings too, so a name in an f-string's braces is not renamed). A local
+  variable's name is renamed wherever else it is used too. Each file
+  changes by one undoable edit, in its own editor state.
 - **Python completion.** CodeMirror's Python mode completes keywords,
   builtins and the file's names. After a dot, and in imports, the editor
   asks the Python worker, which asks jedi (a package installed with the

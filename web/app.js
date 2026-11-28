@@ -15,7 +15,8 @@ import * as sync from "./sync.js";
 import { initLayout } from "./layout.js";
 import { find, replaceAll } from "./find.js";
 import * as packs from "./packs.js";
-import { LANGUAGES, languageOf, validName, withExtension } from "./languages.js";
+import { LANGUAGES, findLocations, languageOf, validName, withExtension } from "./languages.js";
+import { parseTraceback } from "./traceback.js";
 
 const $ = (id) => document.getElementById(id);
 const setStatus = (text) => { $("status").textContent = text; };
@@ -587,7 +588,7 @@ function startCompiler() {
 const secs = (ms) => `${(ms / 1000).toFixed(1)} s`;
 
 function onDone(m) {
-  terminal.linkify((file) => files.has(file));
+  terminal.linkify(findLocations, (file) => files.has(file));
   if (m.stage === "compile") {
     showDiagnostics(parseDiagnostics(compilerOutput));
     if (m.code === 0) {
@@ -666,6 +667,8 @@ function stop() {
 
 let python = null; // its worker, started on the first run
 let runningPython = false;
+/** What the program in progress wrote to stderr, for its traceback. */
+let pythonErrors = "";
 /** The program's stdin, shared with the worker (see python-worker.js). */
 let pythonStdin = null;
 /** Lines typed before the program asked for them; whether it is asking. */
@@ -697,11 +700,15 @@ function startPython() {
     if (m.type === "status") setStatus(m.text);
     else if (m.id !== current) {
       // From a run that was stopped.
-    } else if (m.type === "output") terminal.write(m.stream, m.text);
-    else if (m.type === "stdin") {
+    } else if (m.type === "output") {
+      terminal.write(m.stream, m.text);
+      if (m.stream === "stderr") pythonErrors += m.text;
+    } else if (m.type === "stdin") {
       if (pythonQueue.length) sendStdin(pythonQueue.shift());
       else pythonWaiting = true;
     } else if (m.type === "done") {
+      terminal.linkify(findLocations, (file) => files.has(file));
+      if (m.code !== 0) showDiagnostics(parseTraceback(pythonErrors, files));
       terminal.write("info", `\nExited with code ${m.code} after ${secs(m.ms)}.\n`);
       finishRequest();
     } else if (m.type === "error") {
@@ -718,6 +725,8 @@ async function runPython() {
   runningPython = true;
   pythonQueue.length = 0;
   pythonWaiting = false;
+  pythonErrors = "";
+  showDiagnostics([]);
   setBusy(true);
   terminal.clear();
   terminal.write("info", `Running ${active}…\n`);

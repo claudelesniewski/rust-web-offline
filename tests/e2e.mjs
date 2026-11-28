@@ -508,6 +508,24 @@ try {
     assert.match(await output(), /ModuleNotFoundError[^]*Exited with code 1/);
   });
 
+  await step("Python errors: the traceback's places are links, and underlined", async () => {
+    for (const [name, code] of [["calc.py", "def half(x):\n    return x / 0\n"], ["oops.py", "import calc\n\nprint(calc.half(4))\n"]]) {
+      page.once("dialog", (d) => d.accept(name));
+      await page.locator("#new-file").click();
+      await setCode(name, code);
+    }
+    await runPython("oops.py");
+    assert.match(await output(), /ZeroDivisionError: division by zero[^]*Exited with code 1/);
+    assert.doesNotMatch(await output(), /runpy|<exec>/); // only the program's frames
+    await page.locator("#output a.loc", { hasText: 'File "/src/calc.py", line 2' }).click();
+    await page.locator('#file-list li.active[data-name="calc.py"]').waitFor();
+    assert.equal(await page.locator(".cm-activeLine").innerText(), "    return x / 0");
+    assert.equal(await page.locator(".cm-lintRange-error").innerText(), "x / 0");
+    // The call that led there.
+    await page.locator('#file-list li[data-name="oops.py"]').click();
+    assert.equal(await page.locator(".cm-lintRange-info").innerText(), "calc.half(4)");
+  });
+
   await step("Rust is a toolchain too: removed, then installed again when needed", async () => {
     await page.locator("#options summary").click();
     await page.locator("#toolchains-open").click();

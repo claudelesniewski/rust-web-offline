@@ -52,16 +52,6 @@ export class AnsiParser {
   }
 }
 
-/** The places in the project that `text` names, as rustc and panics do
- *  (src/main.rs:3:7): [{ index, length, file, line, col }], where `file` is
- *  relative to src/. Not paths of the standard library's sources, which
- *  merely contain "src/". */
-export function findLocations(text) {
-  return [...text.matchAll(/(?<![\w/.-])src\/((?:\w+\/)*\w+\.rs):(\d+):(\d+)/g)].map((m) => ({
-    index: m.index, length: m[0].length, file: m[1], line: Number(m[2]), col: Number(m[3]),
-  }));
-}
-
 export class Terminal {
   /** `output` is the element text goes into; `input` the stdin line.
    *  `onLocation(file, line, col)` follows a click on a place in the code. */
@@ -105,16 +95,17 @@ export class Terminal {
     if (atBottom) this.output.scrollTop = this.output.scrollHeight;
   }
 
-  /** Make the places in the output that name a file for which `known(file)`
-   *  holds into links. Done when output ends, not as it comes, as a place
-   *  may come in two chunks. */
-  linkify(known) {
+  /** Make the places in the output that `find(text)` finds ([{ index,
+   *  length, file, line, col }]), in a file for which `known(file)` holds,
+   *  into links. Done when output ends, not as it comes, as a place may come
+   *  in two chunks. */
+  linkify(find, known) {
     const walker = document.createTreeWalker(this.output, NodeFilter.SHOW_TEXT);
     const nodes = [];
     for (let n = walker.nextNode(); n; n = walker.nextNode()) if (!n.parentElement.closest("a.loc")) nodes.push(n);
     for (const node of nodes) {
       const text = node.textContent;
-      const found = findLocations(text).filter((l) => known(l.file));
+      const found = find(text).filter((l) => known(l.file));
       if (!found.length) continue;
       const parts = [];
       let at = 0;

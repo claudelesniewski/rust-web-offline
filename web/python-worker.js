@@ -49,8 +49,12 @@ def _run(path):
         return 0
     except SystemExit as e:
         return e.code if isinstance(e.code, int) else (0 if e.code is None else 1)
-    except BaseException:
-        traceback.print_exc()
+    except BaseException as e:
+        # From the project's code on: not this function's frames, or runpy's.
+        tb = e.__traceback__
+        while tb and not tb.tb_frame.f_code.co_filename.startswith("${SRC}/"):
+            tb = tb.tb_next
+        traceback.print_exception(type(e), e, tb)
         return 1
 `);
   post({ type: "status", text: "Ready." });

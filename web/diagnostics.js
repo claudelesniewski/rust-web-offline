@@ -1,5 +1,16 @@
-// Errors and warnings in rustc's output, to show in the editor.
+// Errors and warnings in rustc's output, and places in the code it and
+// panics name: to show in the editor, and as links in the terminal.
 import { AnsiParser } from "./terminal.js";
+
+/** The places in the project that `text` names, as rustc and panics do
+ *  (src/main.rs:3:7): [{ index, length, file, line, col }], where `file` is
+ *  relative to src/. Not paths of the standard library's sources, which
+ *  merely contain "src/". */
+export function findLocations(text) {
+  return [...text.matchAll(/(?<![\w/.-])src\/((?:\w+\/)*\w+\.rs):(\d+):(\d+)/g)].map((m) => ({
+    index: m.index, length: m[0].length, file: m[1], line: Number(m[2]), col: Number(m[3]),
+  }));
+}
 
 /** The errors and warnings in rustc's human-readable `output` (with or
  *  without colours), each at its primary place in the project:

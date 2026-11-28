@@ -1,6 +1,9 @@
 // The languages the IDE knows, by file extension: the toolchain pack each
-// needs (web/packs.js), and how a project in it is laid out in a folder of
-// a repository, for GitHub sync (web/sync.js).
+// needs (web/packs.js), how a project in it is laid out in a folder of a
+// repository, for GitHub sync (web/sync.js), and the places in the code
+// its errors name.
+import * as rust from "./diagnostics.js";
+import * as python from "./traceback.js";
 
 /** A Cargo.toml for a package named after `project`. */
 export function cargoToml(project) {
@@ -8,14 +11,21 @@ export function cargoToml(project) {
   return `[package]\nname = "${name}"\nversion = "0.1.0"\nedition = "2024"\n`;
 }
 
-/** In order of precedence, for a project with files in several. `layout`:
- *  the files are under `src`, beside a `manifest` made by `makeManifest`
- *  if there is none; without one, a project's files are its folder's. */
+/** In order of precedence, for a project with files in several.
+ *  - `layout`: the files are under `src`, beside a `manifest` made by
+ *    `makeManifest` if there is none; without one, a project's files are
+ *    its folder's.
+ *  - `findLocations(text)`: the places in the project that the output of a
+ *    compile or run names: [{ index, length, file, line, col }]. */
 export const LANGUAGES = [
   { id: "rust", name: "Rust", ext: ".rs", pack: "rust",
-    layout: { src: "src/", manifest: "Cargo.toml", makeManifest: cargoToml } },
-  { id: "python", name: "Python", ext: ".py", pack: "python" },
+    layout: { src: "src/", manifest: "Cargo.toml", makeManifest: cargoToml },
+    findLocations: rust.findLocations },
+  { id: "python", name: "Python", ext: ".py", pack: "python", findLocations: python.findLocations },
 ];
+
+/** The places in the project that `text` names, as any language does. */
+export const findLocations = (text) => LANGUAGES.flatMap((l) => l.findLocations(text)).sort((a, b) => a.index - b.index);
 
 /** The language of file `name`, or undefined. */
 export const languageOf = (name) => LANGUAGES.find((l) => name.endsWith(l.ext));

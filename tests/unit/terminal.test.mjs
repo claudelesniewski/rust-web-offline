@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { AnsiParser, findLocations } from "../../web/terminal.js";
+import { AnsiParser } from "../../web/terminal.js";
+import { findLocations } from "../../web/diagnostics.js";
 
 const ESC = "\x1b";
 

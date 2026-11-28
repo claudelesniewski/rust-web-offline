@@ -10,6 +10,11 @@ test("the probe replaces the word after the dot and ends the statement", () => {
   assert.equal(probeSource(doc, from, from + 2), "fn main() {\n    v.__rwo_probe;\n}\n");
   const call = "f(v.)\n";
   assert.equal(probeSource(call, 4, 4), "f(v.__rwo_probe)\n");
+  // Brackets left open on the line are closed, but not those in strings.
+  const macro = '    println!("{} (", r.\n';
+  assert.equal(probeSource(macro, macro.length - 1, macro.length - 1), '    println!("{} (", r.__rwo_probe);\n');
+  const index = "    let x = [a[0].\n";
+  assert.equal(probeSource(index, index.length - 1, index.length - 1), "    let x = [a[0].__rwo_probe];\n");
 });
 
 test("after if, while, for and match the probe gets a block, so it parses", () => {
@@ -25,8 +30,9 @@ test("nothing is offered after a name that doesn't exist; the plain list if the 
   const outputs = {
     unknown: "error[E0425]: cannot find value `foo` in this scope\n --> src/main.rs:2:5\n",
     elsewhere: "error: expected `;`\n --> src/other.rs:2:5\n",
+    unparsed: "error: expected expression, found `)`\n --> src/main.rs:2:9\n",
   };
-  for (const [kind, expected] of [["unknown", []], ["elsewhere", null]]) {
+  for (const [kind, expected] of [["unknown", []], ["elsewhere", null], ["unparsed", null]]) {
     const complete = createTypeCompletion({ check: async () => outputs[kind], fetchText: async () => "{}" });
     assert.deepEqual(await complete(doc, from, from, [doc], "main.rs"), expected, kind);
   }

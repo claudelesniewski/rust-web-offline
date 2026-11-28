@@ -33,10 +33,13 @@ const configs = process.argv[3] ? JSON.parse(readFileSync(process.argv[3], "utf8
 const site = mkdtempSync(join(tmpdir(), "ai-bench-"));
 cpSync("build/site", site, { recursive: true });
 cpSync("bench/page.js", join(site, "bench.js"));
-// The real model, as the app has it, from the cache.
+// The real model, as the app has it, from the cache; or MODEL, a GGUF
+// file, laid out as FORMAT (web/lm.js: starcoder2 or qwen).
 const index = JSON.parse(readFileSync(join(site, "lm/index.json"), "utf8"));
-const cached = "build/cache/ai-bench/model.gguf";
-if (!existsSync(cached)) {
+const cached = process.env.MODEL ?? "build/cache/ai-bench/model.gguf";
+if (process.env.MODEL) {
+  index.model = { sha256: createHash("sha256").update(readFileSync(cached)).digest("hex"), format: process.env.FORMAT };
+} else if (!existsSync(cached)) {
   mkdirSync("build/cache/ai-bench", { recursive: true });
   console.log(`downloading ${index.model.url}`);
   writeFileSync(cached, Buffer.from(await (await fetch(index.model.url)).arrayBuffer()));
@@ -52,7 +55,9 @@ pinned.python.base = "test-pyodide/";
 writeFileSync(join(site, "packs.json"), JSON.stringify(pinned));
 
 const server = await serve(site);
-const browser = await chromium.launch();
+// A profile on disk: an in-memory one has too little room for a larger model.
+const profile = mkdtempSync(join(tmpdir(), "ai-bench-profile-"));
+const browser = await chromium.launchPersistentContext(profile);
 try {
   const page = await browser.newPage();
   page.on("pageerror", (e) => console.log("page error:", e.message));
@@ -82,4 +87,5 @@ try {
   await browser.close();
   server.close();
   rmSync(site, { recursive: true });
+  rmSync(profile, { recursive: true });
 }

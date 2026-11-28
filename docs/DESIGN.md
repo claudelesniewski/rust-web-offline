@@ -161,25 +161,27 @@ service worker (sw.js): precache the site, serve it and the installed
   (one that opens a block gets a `pass` after it, to be checked alone).
 
   `bench/ai.mjs` measures all this, with the real model in headless
-  Chromium, on 29 lines of each language (`bench/rust.json`,
-  `bench/python.json`): 18 to tune on, 8 unlike those (held out, to tell
-  whether a change only fits the 18), and 3 that need another file of the
-  project. Right means matching the case's pattern and passing the check:
+  Chromium, on 59 lines of each language (`bench/rust.json`,
+  `bench/python.json`): 18 to tune on, 34 unlike those (held out, to tell
+  whether a change only fits the 18: traits, `?`, closures, tests,
+  dataclasses, exceptions, comprehensions, generators, the standard
+  library…), and 7 that need another file of the project. Right means
+  matching the case's pattern and passing the check:
 
   | | Rust | Python | time (Rust, Python) |
   | --- | --- | --- | --- |
-  | model alone | 9 (2 held out, 1 multi-file) | 21 (6, 2) | 0.2 s, 0.15 s |
-  | held to the members after a dot | 10 (3, 1) | 22 (6, 3) | 0.3 s, 0.2 s |
-  | checked (Rust: and fixed) | 10 (2, 1) | 21 (6, 2) | 0.3 s, 0.2 s |
-  | both (as the app) | 12 (3, 1) | 22 (6, 3) | 0.55 s, 0.2 s |
+  | model alone | 18 (8 held out, 4 multi-file) | 39 (21, 5) | 0.25 s, 0.15 s |
+  | held to the members after a dot | 21 (10, 4) | 42 (22, 7) | 0.4 s, 0.2 s |
+  | checked (Rust: and fixed) | 21 (9, 5) | 39 (21, 5) | 0.35 s, 0.2 s |
+  | both (as the app) | 24 (11, 5) | 42 (22, 7) | 0.6 s, 0.25 s |
 
-  Without rustc's fixes and the second pick of a member, the app got 10 in
-  Rust; the fixes alone, 11; three picks rather than two, no more, and
+  On the first 29 lines (18 tuned on, 8 held out, 3 multi-file), without
+  rustc's fixes and the second pick of a member, the app got 10 in Rust,
+  against 12 with them; the fixes alone, 11; three picks rather than two, no more, and
   slower. Both gains are among the 18 tuned on (`read_line(&mut input)`,
   `println!("{}", name)`), though nothing in them is tuned to those lines.
-  The check's gain is otherwise in what it hides: of Python's 29, the model
-  alone shows 8 wrong lines, and the app 6 (Rust: 20, and 11, as fixed
-  lines that compile but aren't the one wanted show too). Python's check
+  The check's gain is otherwise in what it hides: of Rust's 59, the model
+  alone shows 41 wrong lines, and the app 20. Python's check
   has no fixes to offer, and a second pick of a member found none better.
   Filling in the middle (the code after the cursor too, with the
   tokenizer's `<fim_…>` tokens) made the model write nonsense: 0 and 1
@@ -188,8 +190,25 @@ service worker (sw.js): precache the site, serve it and the installed
   did no better; up to 48 tokens a suggestion, rather than 32, got one more
   Python line right that was cut before its end.
 
-  Qwen2.5-Coder-0.5B, a much better code model, is
-  430 MB at 4 bits, too much for small Chromebooks. Chat-tuned variants
+  Larger models, on the same benchmark (`MODEL=<file.gguf> FORMAT=<format>
+  node bench/ai.mjs`), with the toolchain's help as above; FIM is filling in
+  the middle, which Qwen2.5-Coder was trained for (`<|fim_prefix|>` …), and
+  SmolLM2 wasn't:
+
+  | | download | Rust | Python | time (Rust, Python) |
+  | --- | --- | --- | --- | --- |
+  | SmolLM2-135M, 8 bits (now) | 145 MB | 24 (11 held out, 5 multi-file) | 42 (22, 7) | 0.6 s, 0.25 s |
+  | SmolLM2-360M, 8 bits | 386 MB | 45 (27, 6) | 50 (28, 7) | 1.15 s, 0.5 s |
+  | Qwen2.5-Coder-0.5B, 4 bits (Q4_K_M), and FIM | 398 MB | 51 (29, 7) | 49 (29, 7) | 1.15 s, 0.65 s |
+  | Qwen2.5-Coder-0.5B, 8 bits, and FIM | 531 MB | 52 (30, 7) | 51 (30, 7) | 1.0 s, 0.55 s |
+
+  Without FIM, Qwen2.5-Coder-0.5B got 22 of the first 29 Rust lines and 17
+  Python ones, against 25 and 23 with it; Qwen2.5-Coder-1.5B (4 bits,
+  986 MB) with FIM did no better than 0.5B on those 29, in twice the time.
+  (Times on 4 cores; Qwen's 8 bits are faster than its 4, which take more
+  work to unpack in wasm.) So a model of about 400 to 500 MB does much
+  better: twice as many Rust lines right, held-out ones too, at about twice
+  the time. Chat-tuned variants
   (SmolLM2-135M-Instruct, kimi-coder-135m) complete code no better (5 of 12
   test lines, as the base model) and answer Rust questions confidently
   wrongly, so offline chat would need a much larger model.

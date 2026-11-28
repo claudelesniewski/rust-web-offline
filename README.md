@@ -31,7 +31,7 @@ library run as WebAssembly on your machine; nothing is sent to a server.
   `input()` included, and a traceback's places are links (and underlined);
   add packages from Pyodide's (numpy, pandas, …) in the same dialog, or
   remove them. **Format** for `.py` files uses Ruff (10 MB, installed when
-  first used).
+  first used), which, once installed, also lints them as you type.
 - Optional Vim key bindings (in **Options**), with `:w` to save.
 - Type-aware completion after `.` (on by default, in **Options**): in Rust,
   the compiler finds the type, and the offline docs list its methods (and

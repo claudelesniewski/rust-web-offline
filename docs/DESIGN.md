@@ -275,7 +275,10 @@ service worker (sw.js): precache the site, serve it and the installed
   under `packs/python/`. Ruff's pack is its WebAssembly build (10 MB, from
   npm via the same CDN), which `web/ruff.js` loads to format Python as
   Black would; Pyodide has no formatter, and Ruff's is fast and small
-  enough to be a pack of its own.
+  enough to be a pack of its own. Once it's installed (never asked for
+  this), the open `.py` file is also linted with Ruff's default rules half a
+  second after edits stop: rules' findings are warnings, syntax errors
+  errors, replacing the diagnostics the edit cleared (a run's included).
   Its packages come from Pyodide's lock file (`pyodide-lock.json`), which
   names each one's file, SHA-256 and dependencies; installing one fetches
   those too, from the same CDN. Separate builds of the site per language

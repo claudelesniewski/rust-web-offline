@@ -689,6 +689,19 @@ try {
     await setCode("calc.py", "def half(x):\n    return x / 0\n");
   });
 
+  await step("Ruff lints Python as you type, once installed", async () => {
+    await setCode("calc.py", "def half(x):\n    return y / 2\n");
+    await page.locator(".cm-lintRange-warning").waitFor({ timeout: 10_000 });
+    assert.equal(await page.locator(".cm-lintRange-warning").innerText(), "y");
+    // A syntax error hides the rules' findings.
+    await setCode("calc.py", "def half(:\n    return y\n");
+    await page.locator(".cm-lintRange-error").waitFor({ timeout: 10_000 });
+    assert.equal(await page.locator(".cm-lintRange-error").innerText(), ":");
+    assert.equal(await page.locator(".cm-lintRange-warning").count(), 0);
+    await setCode("calc.py", "def half(x):\n    return x / 0\n");
+    await page.locator(".cm-lintRange-error").waitFor({ state: "detached" });
+  });
+
   await step("Rust is a toolchain too: removed, then installed again when needed", async () => {
     await page.locator("#options summary").click();
     await page.locator("#toolchains-open").click();

@@ -616,6 +616,32 @@ try {
     assert.match(await output(), /ModuleNotFoundError[^]*Exited with code 1/);
   });
 
+  await step("Python plots: matplotlib, added in one click, shows figures in the output", async () => {
+    await page.locator("#options summary").click();
+    await page.locator("#toolchains-open").click();
+    await page.locator("#toolchains-dialog .common button", { hasText: "matplotlib" }).click();
+    await page.locator("#toolchains-dialog .packages span", { hasText: "matplotlib" }).waitFor({ timeout: 60_000 });
+    await page.locator("#toolchains-close").click();
+    await page.locator("#examples").selectOption("plot.py");
+    await page.locator('#file-list li.active[data-name="plot.py"]').waitFor();
+    await runPython("plot.py");
+    assert.match(await output(), /Exited with code 0/);
+    // One by plt.show(), and one still open at the end, between the text.
+    await setCode("plot.py", 'import matplotlib.pyplot as plt\nplt.plot([1, 3, 2])\nplt.show()\nprint("between")\nplt.bar(["a", "b"], [2, 5])\n');
+    await runPython("plot.py");
+    await page.locator("#output", { hasText: /between[^]*Exited with code 0/ }).waitFor(); // not the last run's
+    await page.waitForFunction(() => [...document.querySelectorAll("#output img")].every((img) => img.complete));
+    const images = await page.locator("#output img").evaluateAll((imgs) => imgs.map((img) => ({
+      src: img.src.slice(0, 22), width: img.naturalWidth, before: img.nextSibling?.textContent ?? "",
+    })));
+    assert.equal(images.length, 2);
+    for (const img of images) {
+      assert.equal(img.src, "data:image/png;base64,");
+      assert.ok(img.width > 100, `a ${img.width} px plot`);
+    }
+    assert.match(images[0].before, /between/);
+  });
+
   await step("Python docs: from the Docs menu online, then installed for offline", async () => {
     const opened = page.waitForEvent("popup");
     await page.locator("#docs").selectOption("python-docs/library/index.html");

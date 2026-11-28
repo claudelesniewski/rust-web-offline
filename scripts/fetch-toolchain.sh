@@ -16,7 +16,8 @@
 # Python documentation: that of Python 3.14.2, Pyodide's (PSF licence).
 # Test model: a 1 MB llama.cpp test model (MIT), which tests/e2e.mjs uses in
 # place of the real one to test AI suggestions. Test Pyodide: the Python
-# pack's files (as in web/packs.json), a small package and jedi (completion),
+# pack's files (as in web/packs.json), a small package, jedi (completion)
+# and matplotlib with its dependencies (plots),
 # and test Ruff, the Ruff pack's, which tests/e2e.mjs serves in place of the
 # CDN.
 #
@@ -62,6 +63,18 @@ e14d49ceca9b4a0e274ea918f3a898de2d3880b6e5573a6cfe1a2267ecc70329  test/pyodide/p
 6541523b4b16c1953d2fc9b82fb86c540eea9f78fca329ab371ed13a8b0faa51  test/pyodide/annotated_types-0.7.0-py3-none-any.whl  $PYODIDE/annotated_types-0.7.0-py3-none-any.whl
 14346bd3f7aabb699b9e1223afdfae706f9a391212659d2cbf74c66c715095b4  test/pyodide/jedi-0.19.2-py2.py3-none-any.whl  $PYODIDE/jedi-0.19.2-py2.py3-none-any.whl
 6a4e296bc54f0e3489ce61ff9f30e9538dc382bdae10fa6413b34000883385d8  test/pyodide/parso-0.8.6-py2.py3-none-any.whl  $PYODIDE/parso-0.8.6-py2.py3-none-any.whl
+a292c1f5d7d8a2208cd5e94fc467604c131cabcd2fc14fed6eefde121e7fabdf  test/pyodide/numpy-2.4.6-cp314-cp314-pyemscripten_2026_0_wasm32.whl  $PYODIDE/numpy-2.4.6-cp314-cp314-pyemscripten_2026_0_wasm32.whl
+0ac15ebf9f820d2d1c3526388aa2818b631cb6c4aae1682efd6b4cc12c1f302c  test/pyodide/contourpy-1.3.3-cp314-cp314-pyemscripten_2026_0_wasm32.whl  $PYODIDE/contourpy-1.3.3-cp314-cp314-pyemscripten_2026_0_wasm32.whl
+228c50f73aa7addf2c2ccf2979c256802a59ab69cad8152b31b9443cc8140f42  test/pyodide/six-1.17.0-py2.py3-none-any.whl  $PYODIDE/six-1.17.0-py2.py3-none-any.whl
+8ee450085f15b47f78b034d60059af6a3649e98fa5dde073363437742cc0b4ea  test/pyodide/cycler-0.12.1-py3-none-any.whl  $PYODIDE/cycler-0.12.1-py3-none-any.whl
+0d1516e073fd0a8d8e6d9af46417b6a26209a42518024a18f7085e72d2599605  test/pyodide/fonttools-4.62.1-py3-none-any.whl  $PYODIDE/fonttools-4.62.1-py3-none-any.whl
+47781998156721147c128a3c74547d5703e0e3cc454d8203e629339368308a93  test/pyodide/kiwisolver-1.5.0-cp314-cp314-pyemscripten_2026_0_wasm32.whl  $PYODIDE/kiwisolver-1.5.0-cp314-cp314-pyemscripten_2026_0_wasm32.whl
+565acbbea54da30348b6d68b6a54373e6f777987db9f1db6966b4b3a5060d303  test/pyodide/packaging-26.1-py3-none-any.whl  $PYODIDE/packaging-26.1-py3-none-any.whl
+e29838b7a756e4ee0f27a9cfa9a387ee0dfa2e9dd44be2dd595130b9f9d93ac3  test/pyodide/pillow-12.2.0-cp314-cp314-pyemscripten_2026_0_wasm32.whl  $PYODIDE/pillow-12.2.0-cp314-cp314-pyemscripten_2026_0_wasm32.whl
+f0dd8225b5f8e945980b400bd465b4b90cb0498a2eede0d9dbea98372f6110c5  test/pyodide/pyparsing-3.3.2-py3-none-any.whl  $PYODIDE/pyparsing-3.3.2-py3-none-any.whl
+9b13365edf9c188f570baf9c540bbb3029ada2a2dacb9694b3659941693ee9e5  test/pyodide/python_dateutil-2.9.0.post0-py2.py3-none-any.whl  $PYODIDE/python_dateutil-2.9.0.post0-py2.py3-none-any.whl
+b8249d6450146e0b61e6d710dc02ebb35a904796c4c2f97fe87d4ac5872db36a  test/pyodide/pytz-2026.1.post1-py2.py3-none-any.whl  $PYODIDE/pytz-2026.1.post1-py2.py3-none-any.whl
+722857932f8f62eac64f8439af15c94d427f9fb945f9590cd242805c983d2d54  test/pyodide/matplotlib-3.10.8-cp314-cp314-pyemscripten_2026_0_wasm32.whl  $PYODIDE/matplotlib-3.10.8-cp314-cp314-pyemscripten_2026_0_wasm32.whl
 8a90aec3c47c6d0b06a0930d2ff7be0b584e15fc7c09768f74717fc8b5103d0e  test/ruff/ruff_wasm.js  $RUFF/ruff_wasm.js
 aee635cd86fd718af224d460e786422a76eeae4c59719eb89f6925f9514d39e1  test/ruff/ruff_wasm_bg.wasm  $RUFF/ruff_wasm_bg.wasm
 "

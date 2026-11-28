@@ -373,8 +373,7 @@ try {
     await page.mouse.up();
     const taller = await height();
     assert.ok(Math.abs(taller - before - 100) < 5, `${before} -> ${taller}`);
-    const saved = await page.evaluate(() => import("./store.js").then((s) => s.getSetting("layout")));
-    assert.ok(saved.editor > 0 && saved.editor < 0.6, JSON.stringify(saved));
+    // Kept even by a reload right after the drag.
     await page.reload();
     await waitReady();
     assert.ok(Math.abs((await height()) - taller) < 2);

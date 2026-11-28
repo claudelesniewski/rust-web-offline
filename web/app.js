@@ -1084,7 +1084,7 @@ Promise.all([listModels(), store.getSetting("ai")]).then(([, id]) => {
 });
 store.getSetting("types").then((on) => setTypes(on ?? true));
 store.getSetting("vim").then((on) => { if (on) setVim(true); });
-initLayout($("main"), $("files-handle"), $("terminal-handle"), store);
+initLayout($("main"), $("files-handle"), $("terminal-handle"));
 if (crossOriginIsolated) {
   startPacks().catch((e) => {
     setStatus(`Could not load the toolchains: ${e.message}`);

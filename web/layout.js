@@ -1,8 +1,11 @@
 // Resizable panes: a handle between the file list and the editor sets the
 // list's width, and one between the editor and the terminal sets how they
 // share the height. Dragging works with a mouse or a finger; a double click
-// puts a handle back where it was. The sizes are kept in the setting "layout",
-// as { files: the list's width in px, editor: the editor's share of the height }.
+// puts a handle back where it was. The sizes are kept in localStorage's
+// "layout", as { files: the list's width in px, editor: the editor's share of
+// the height }: there, unlike in IndexedDB, they are saved at once, so that a
+// reload right after a drag keeps them, and read at once, before the page
+// first shows.
 
 const MIN_FILES = 100; // px, for the file list and for the editor beside it
 const MIN_PANE = 60; // px, for the editor and for the terminal
@@ -22,14 +25,23 @@ function apply(main, { files, editor }) {
 }
 
 /** Make `filesHandle` and `terminalHandle` resize `main`'s panes; restore the
- *  sizes from, and save them to, `store`'s settings. */
-export async function initLayout(main, filesHandle, terminalHandle, store) {
-  let layout = (await store.getSetting("layout")) ?? {};
+ *  sizes from, and save them to, `storage` (as localStorage). */
+export function initLayout(main, filesHandle, terminalHandle, storage = localStorage) {
+  let layout = {};
+  try {
+    layout = JSON.parse(storage.getItem("layout")) ?? {};
+  } catch {
+    // None saved, or no storage (a private window): the default layout.
+  }
   apply(main, layout);
   const save = (change) => {
     layout = { ...layout, ...change };
     apply(main, layout);
-    store.setSetting("layout", layout);
+    try {
+      storage.setItem("layout", JSON.stringify(layout));
+    } catch {
+      // Not kept, then.
+    }
   };
   const drag = (handle, sizeAt) => {
     handle.onpointerdown = (e) => {

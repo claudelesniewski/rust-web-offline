@@ -274,6 +274,15 @@ service worker (sw.js): precache the site, serve it and the installed
   run starts a new one. A traceback shows only the program's frames (not
   runpy's); `web/traceback.js` makes its places links, and underlines where
   the exception was raised, and the calls that led there.
+- **Tests.** Rust's: the open file's crate is compiled with `--test`, and
+  each test the harness lists (`--list`) runs in a process of its own
+  (`<name> --exact`): in wasm, a panic aborts the program, as it can't
+  unwind, so one failing test would end the others. Python's: the project's
+  test files (`test_*.py`, `*_test.py`) and the open file, their
+  `unittest.TestCase`s and their `test_` functions (as pytest finds them),
+  run one by one with `unittest`, each one's output kept. Both report each
+  test (passed or failed, its output and time) as it ends; places in the
+  output are links, as in a run's.
 - **Python completion.** CodeMirror's Python mode completes keywords,
   builtins and the file's names. After a dot, and in imports, the editor
   asks the Python worker, which asks jedi (a package installed with the

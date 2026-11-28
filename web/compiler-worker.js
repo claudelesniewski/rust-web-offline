@@ -7,6 +7,8 @@
 //   { type: "run", id, files: [{ name, content }], main }
 //       Compile `main` (one of `files`, all written side by side in src/ so
 //       `mod other;` works) and, if that succeeds, run it.
+//   { type: "test", id, files, main }       compile `main`'s tests, and run
+//                                           each (answered by a "test" each)
 //   { type: "format", id, name, content }   rustfmt one file
 //   { type: "check", id, files, main, json }  type-check only (for type-aware
 //                                           completion, and AI suggestions:
@@ -19,7 +21,8 @@
 //   { type: "status", text }
 //   { type: "ready" }
 //   { type: "output", id, stream: "compiler" | "stdout" | "stderr", text }
-//   { type: "done", id, stage: "compile" | "run" | "format", code, ms, formatted? }
+//   { type: "done", id, stage: "compile" | "run" | "test" | "format", code, ms, formatted? }
+//   { type: "test", id, name, ok, output, ms }  a test's result
 //   { type: "checked", id, output }          the check's diagnostics, as text
 //   { type: "error", id?, text }
 
@@ -168,12 +171,13 @@ async function compile(id, files, args, { env = {}, out = sink(id, "compiler") }
   }
 }
 
-async function run({ id, files, main }) {
-  await ready;
+/** Compile `main` (as a test harness, if `test`) into a wasm program, and
+ *  tell the page; the program's bytes, or undefined if it failed. */
+async function build(id, files, main, test = false) {
   status("Compiling…");
-  let t0 = performance.now();
+  const t0 = performance.now();
   const { code, dir } = await compile(id, files, (src, dir) => [
-    "rustc", `${src}/${main}`, "--edition=2024", "--crate-name=main", "--crate-type=bin",
+    "rustc", `${src}/${main}`, "--edition=2024", "--crate-name=main", ...(test ? ["--test"] : ["--crate-type=bin"]),
     `--target=${TARGET}`, `--sysroot=${SYSROOT}`, "-o", `${dir}/out.wasm`, "-Copt-level=0",
     // Trap on stack overflow instead of corrupting the heap (no guard pages in wasm).
     "-Cllvm-args=wasm-stack-limit",
@@ -188,22 +192,64 @@ async function run({ id, files, main }) {
   const built = code === 0 && !killed.has(id) ? kernel.fs.readFile(`${dir}/out.wasm`)?.slice() : undefined;
   kernel.fs.remove(dir);
   postMessage({ type: "done", id, stage: "compile", code: killed.has(id) ? 137 : code, ms: performance.now() - t0 });
-  if (!built) return finish(id);
+  return built;
+}
 
-  status("Running…");
-  t0 = performance.now();
-  const proc = kernel.spawn({ bytes: built, module: await WebAssembly.compile(built), maxPages: PROGRAM_MAX_PAGES }, {
-    args: [main.replace(/\.rs$/, "")],
-    env: { RUST_BACKTRACE: "0" },
-    stdin: "pipe",
-    stdout: sink(id, "stdout"),
-    stderr: sink(id, "stderr"),
-  });
+/** Run program `built` ({ bytes, module }) with `args`; its exit code.
+ *  `io` is the kernel's stdin, stdout and stderr. */
+async function execute(id, built, args, io) {
+  const proc = kernel.spawn({ ...built, maxPages: PROGRAM_MAX_PAGES }, { args, env: { RUST_BACKTRACE: "0" }, ...io });
   running.set(id, proc);
   if (killed.has(id)) kernel.kill(proc);
-  const runCode = await proc.exited;
+  const code = await proc.exited;
   running.delete(id);
-  postMessage({ type: "done", id, stage: "run", code: runCode, ms: performance.now() - t0 });
+  return code;
+}
+
+async function run({ id, files, main }) {
+  await ready;
+  const bytes = await build(id, files, main);
+  if (!bytes) return finish(id);
+  status("Running…");
+  const t0 = performance.now();
+  const code = await execute(id, { bytes, module: await WebAssembly.compile(bytes) }, [main.replace(/\.rs$/, "")],
+    { stdin: "pipe", stdout: sink(id, "stdout"), stderr: sink(id, "stderr") });
+  postMessage({ type: "done", id, stage: "run", code, ms: performance.now() - t0 });
+  finish(id);
+}
+
+/** libtest's own lines, around a test's output. */
+const HARNESS = /^(running \d+ tests?|test \S+ \.\.\. ?(ok|FAILED|ignored)?|test result: .*|error: the program trapped.*|)$/;
+
+/** Compile `main`'s tests, then run each in a process of its own: a panic
+ *  aborts the program (in wasm, panics don't unwind), so one failing test
+ *  would end the others. */
+async function test({ id, files, main }) {
+  await ready;
+  const bytes = await build(id, files, main, true);
+  if (!bytes) return finish(id);
+  status("Testing…");
+  const t0 = performance.now();
+  const built = { bytes, module: await WebAssembly.compile(bytes) };
+  /** Run the tests with `args`: the exit code, and all they wrote. */
+  const capture = async (args) => {
+    const dec = new TextDecoder();
+    let output = "";
+    const out = (bytes) => { output += dec.decode(bytes, { stream: true }); };
+    const code = await execute(id, built, ["main", ...args], { stdout: out, stderr: out });
+    return { code, output };
+  };
+  const { output: list } = await capture(["--list", "--format=terse"]);
+  let failed = 0;
+  for (const [, name] of list.matchAll(/^(.+): test$/gm)) {
+    if (killed.has(id)) break;
+    const t = performance.now();
+    const { code, output } = await capture([name, "--exact", "--nocapture"]);
+    if (code !== 0) failed++;
+    const shown = output.split("\n").filter((l) => !HARNESS.test(l)).join("\n");
+    postMessage({ type: "test", id, name, ok: code === 0, output: shown, ms: performance.now() - t });
+  }
+  postMessage({ type: "done", id, stage: "test", code: killed.has(id) ? 137 : failed ? 101 : 0, ms: performance.now() - t0 });
   finish(id);
 }
 
@@ -247,6 +293,7 @@ function errorText(err) {
 onmessage = ({ data: m }) => {
   const fail = (err) => postMessage({ type: "error", id: m.id, text: errorText(err) });
   if (m.type === "run") run(m).catch(fail);
+  else if (m.type === "test") test(m).catch(fail);
   else if (m.type === "format") format(m).catch(fail);
   else if (m.type === "check") check(m).catch(fail);
   else if (m.type === "stdin") running.get(m.id)?.writeStdin?.(new TextEncoder().encode(m.text));

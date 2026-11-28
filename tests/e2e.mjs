@@ -318,6 +318,33 @@ try {
     assert.match(await page.locator(".cm-content").innerText(), /pub fn double\(x: i32\) -> i32 \{\n\s+x \* 2\n\}/);
   });
 
+  await step("run Rust's tests, each on its own, so a failing one doesn't stop the others", async () => {
+    await setCode("main.rs", [
+      "fn add(a: i32, b: i32) -> i32 { a + b }",
+      "fn main() {}",
+      "#[cfg(test)]",
+      "mod tests {",
+      "    use super::*;",
+      "    #[test]",
+      "    fn adds() { assert_eq!(add(2, 2), 4); }",
+      "    #[test]",
+      "    fn fails() { assert_eq!(add(2, 2), 5); }",
+      "    #[test]",
+      "    fn zeros() { assert_eq!(add(0, 0), 0); }",
+      "}",
+    ].join("\n"));
+    await page.locator("#test:not([disabled])").click();
+    await page.locator("#output", { hasText: /passed, \d+ failed/ }).waitFor({ timeout: 120_000 });
+    const out = await output();
+    assert.match(out, /✓ tests::adds/);
+    assert.match(out, /✗ tests::fails[^]*left: 4\n\s*right: 5/);
+    assert.match(out, /✓ tests::zeros/);
+    assert.match(out, /2 passed, 1 failed/);
+    // The failing assertion's place is a link.
+    await page.locator("#output a.loc", { hasText: /^src\/main\.rs:9:/ }).click();
+    assert.match(await page.locator(".cm-activeLine").innerText(), /fn fails/);
+  });
+
   await step("Vim key bindings", async () => {
     await setCode("main.rs", "let a = 1;\nlet b = 2;\nlet c = 3;\n");
     const vimOption = async (on) => {
@@ -540,6 +567,34 @@ try {
     // The call that led there.
     await page.locator('#file-list li[data-name="oops.py"]').click();
     assert.equal(await page.locator(".cm-lintRange-info").innerText(), "calc.half(4)");
+  });
+
+  await step("run Python's tests: unittest's, and test_ functions", async () => {
+    page.once("dialog", (d) => d.accept("test_calc.py"));
+    await page.locator("#new-file").click();
+    await setCode("test_calc.py", [
+      "import unittest",
+      "from calc import half",
+      "",
+      "class TestHalf(unittest.TestCase):",
+      "    def test_zero(self):",
+      "        self.assertEqual(half(0), 0)",
+      "",
+      "def test_four():",
+      "    assert 4 / 2 == 2",
+      "",
+      "def test_wrong():",
+      "    assert 1 == 2, 'one is not two'",
+    ].join("\n"));
+    await page.locator("#test:not([disabled])").click();
+    await page.locator("#output", { hasText: /passed, \d+ failed/ }).waitFor({ timeout: 60_000 });
+    const out = await output();
+    assert.match(out, /✗ test_calc\.TestHalf\.test_zero[^]*ZeroDivisionError/); // calc.half divides by 0
+    assert.match(out, /✓ test_calc\.test_four/);
+    assert.match(out, /✗ test_calc\.test_wrong[^]*one is not two/);
+    assert.match(out, /1 passed, 2 failed/);
+    await page.locator("#output a.loc", { hasText: 'File "/src/calc.py", line 2' }).first().waitFor();
+    await page.locator('#file-list li[data-name="oops.py"]').click();
   });
 
   await step("F12 in Python goes to where an imported module defines the name", async () => {

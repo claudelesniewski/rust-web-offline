@@ -213,6 +213,8 @@ function openFile(name) {
   active = name;
   editor.open(name, files.get(name));
   editor.setDiagnostics(diagnostics.get(name) ?? []);
+  // A Python file is linted when opened too, unless a run's findings show.
+  if (!diagnostics.has(name)) scheduleLint();
   store.setSetting(`active:${project}`, name);
   renderFiles();
 }

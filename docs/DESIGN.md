@@ -277,8 +277,9 @@ service worker (sw.js): precache the site, serve it and the installed
   Black would; Pyodide has no formatter, and Ruff's is fast and small
   enough to be a pack of its own. Once it's installed (never asked for
   this), the open `.py` file is also linted with Ruff's default rules half a
-  second after edits stop: rules' findings are warnings, syntax errors
-  errors, replacing the diagnostics the edit cleared (a run's included).
+  second after edits stop, and when it is opened (unless a run's findings
+  show): rules' findings are warnings, syntax errors errors, replacing the
+  diagnostics the edit cleared (a run's included).
   Its packages come from Pyodide's lock file (`pyodide-lock.json`), which
   names each one's file, SHA-256 and dependencies; installing one fetches
   those too, from the same CDN. Separate builds of the site per language

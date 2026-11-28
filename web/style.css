@@ -163,6 +163,21 @@ button.link { border: 0; background: none; padding: 0; color: #7cc4ff; text-deco
 #toolchains-dialog .add { display: flex; gap: 6px; }
 #toolchains-dialog .add input { flex: 1; }
 
+/* The command palette and quick open (Ctrl-Shift-P, Ctrl-P). */
+#palette-dialog {
+  width: min(520px, calc(100vw - 32px)); margin-top: 10vh; padding: 8px; color: var(--text);
+  background: var(--panel); border: 1px solid var(--border); border-radius: 6px;
+}
+#palette-dialog::backdrop { background: rgb(0 0 0 / 0.3); }
+#palette-query {
+  width: 100%; font: inherit; color: var(--text); background: var(--bg);
+  border: 1px solid var(--border); border-radius: 4px; padding: 6px 8px;
+}
+#palette-list { list-style: none; margin: 6px 0 0; padding: 0; max-height: 50vh; overflow: auto; }
+#palette-list li { display: flex; justify-content: space-between; gap: 12px; padding: 4px 8px; border-radius: 4px; cursor: pointer; }
+#palette-list li.selected { background: var(--bg); outline: 1px solid var(--accent); }
+#palette-list kbd { color: var(--muted); font: 12px ui-monospace, monospace; }
+
 /* Hover docs (vendor/editor.js). */
 .cm-hover-doc { max-width: 36em; max-height: 16em; overflow: auto; padding: 6px 8px; font: 13px/1.4 system-ui, sans-serif; }
 .cm-hover-doc code { display: block; font: 12px/1.4 ui-monospace, monospace; white-space: pre-wrap; }

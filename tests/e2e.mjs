@@ -149,6 +149,28 @@ try {
     assert.match(await run(), /^42$/m);
   });
 
+  await step("command palette (Ctrl-Shift-P) and quick open (Ctrl-P), from the editor", async () => {
+    await page.locator('#file-list li[data-name="geometry.rs"]').click();
+    await page.locator(".cm-content").click();
+    await page.keyboard.press("Control+Shift+P");
+    await page.keyboard.type("form");
+    assert.equal(await page.locator("#palette-list li.selected").innerText(), "Format\nShift-Alt-F");
+    await page.keyboard.press("Enter");
+    await page.locator("#output", { hasText: "Formatted." }).waitFor({ timeout: 60_000 });
+    assert.equal(await page.locator("#palette-dialog").evaluate((d) => d.open), false);
+    await page.locator(".cm-content").click();
+    await page.keyboard.press("Control+P");
+    await page.keyboard.type("main");
+    await page.keyboard.press("Enter");
+    await page.locator('#file-list li.active[data-name="main.rs"]').waitFor();
+    // Escape closes it, doing nothing.
+    await page.keyboard.press("Control+P");
+    await page.keyboard.press("ArrowDown");
+    await page.keyboard.press("Escape");
+    assert.equal(await page.locator("#palette-dialog").evaluate((d) => d.open), false);
+    assert.equal(await page.locator("#file-list li.active").getAttribute("data-name"), "main.rs");
+  });
+
   await step("a panic's place in another file opens it there", async () => {
     await setCode("geometry.rs", "pub fn double(x: i32) -> i32 { x * 2 }\npub fn oops() -> i32 { let v: Vec<i32> = Vec::new(); v[3] }\n");
     await setCode("main.rs", "mod geometry;\nfn main() { geometry::oops(); }\n");

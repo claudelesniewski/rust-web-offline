@@ -311,6 +311,12 @@ service worker (sw.js): precache the site, serve it and the installed
   members of what jedi infers is there, and modules and their names. The
   first takes about a second, as Python loads; later ones, about 150 ms.
   While a program runs, the worker can't answer, and there are none.
+- **Command palette.** Ctrl-Shift-P lists the app's commands, Ctrl-P the
+  project's files, in a dialog; most commands click the button they stand
+  for. What is typed picks them by a fuzzy match (`web/palette.js`): its
+  letters in order, ignoring case, ranked higher when together, at the
+  start of a word or of the label. The keys are caught on the document,
+  capturing, so they work in the editor, with Vim's keys too.
 
 ## Limits
 

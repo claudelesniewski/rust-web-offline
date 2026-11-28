@@ -130,6 +130,8 @@ export function createEditor(parent, { onChange, keys = [], onSave = () => {}, o
       view.dispatch({ selection: { anchor: pos }, scrollIntoView: true });
       view.focus();
     },
+    /** Go to the definition of the word at the cursor, if there is one. */
+    goToDefinition() { definition(view.state, view.state.selection.main.head); },
     /** Remember the current state of `name` (call before switching away). */
     save(name) { states.set(name, view.state); },
     /** Show `list` of { line, col, width, severity, message } (from 1) in

@@ -1,9 +1,11 @@
 // The languages the IDE knows, by file extension: the toolchain pack each
 // needs (web/packs.js), how a project in it is laid out in a folder of a
-// repository, for GitHub sync (web/sync.js), and the places in the code
-// its errors name.
-import * as rust from "./diagnostics.js";
-import * as python from "./traceback.js";
+// repository, for GitHub sync (web/sync.js), the places in the code its
+// errors name, and where a name is defined.
+import * as rustErrors from "./diagnostics.js";
+import * as rustDefinitions from "./definitions.js";
+import * as pythonErrors from "./traceback.js";
+import * as pythonDefinitions from "./python-definitions.js";
 
 /** A Cargo.toml for a package named after `project`. */
 export function cargoToml(project) {
@@ -16,12 +18,15 @@ export function cargoToml(project) {
  *    `makeManifest` if there is none; without one, a project's files are
  *    its folder's.
  *  - `findLocations(text)`: the places in the project that the output of a
- *    compile or run names: [{ index, length, file, line, col }]. */
+ *    compile or run names: [{ index, length, file, line, col }].
+ *  - `findDefinition(files, current, word, pos)`: where `word` (at offset
+ *    `pos` of file `current`) is defined: { file, line, col }, or null. */
 export const LANGUAGES = [
   { id: "rust", name: "Rust", ext: ".rs", pack: "rust",
     layout: { src: "src/", manifest: "Cargo.toml", makeManifest: cargoToml },
-    findLocations: rust.findLocations },
-  { id: "python", name: "Python", ext: ".py", pack: "python", findLocations: python.findLocations },
+    findLocations: rustErrors.findLocations, findDefinition: rustDefinitions.findDefinition },
+  { id: "python", name: "Python", ext: ".py", pack: "python",
+    findLocations: pythonErrors.findLocations, findDefinition: pythonDefinitions.findDefinition },
 ];
 
 /** The places in the project that `text` names, as any language does. */

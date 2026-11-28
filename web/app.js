@@ -975,6 +975,8 @@ function startPython() {
     } else if (m.type === "output") {
       terminal.write(m.stream, m.text);
       if (m.stream === "stderr") pythonErrors += m.text;
+    } else if (m.type === "image") {
+      terminal.image(`data:${m.mime};base64,${m.data}`);
     } else if (m.type === "stdin") {
       if (pythonQueue.length) sendStdin(pythonQueue.shift());
       else pythonWaiting = true;
@@ -1149,6 +1151,14 @@ async function renderToolchains() {
           onclick: () => busy(`Removing ${name}…`, () => packs.removePackage(pack, name)),
         })]))
         : [make("span", { className: "hint", textContent: "No packages yet." })]));
+      const common = packs.commonToAdd(all, have);
+      if (common.length) {
+        section.append(make("div", { className: "packages common" }, [
+          make("span", { className: "hint", textContent: "Add:" }),
+          ...common.map((name) => make("button", { textContent: `+ ${name}`, title: `Add ${name} and what it needs`,
+            onclick: () => busy(`Adding ${name}…`, () => packs.installPackages(id, pack, [name], status)) })),
+        ]));
+      }
       const input = make("input", { placeholder: "Add a package, as numpy", spellcheck: false });
       input.setAttribute("list", `${id}-package-names`);
       const add = () => input.value.trim() && busy(`Adding ${input.value}…`,

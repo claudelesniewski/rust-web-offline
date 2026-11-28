@@ -85,14 +85,29 @@ export class Terminal {
   /** Append `text` from `stream` ("compiler", "stdout", "stderr", "stdin", "info"). */
   write(stream, text) {
     if (!this.parsers.has(stream)) this.parsers.set(stream, new AnsiParser());
-    const atBottom = this.output.scrollTop + this.output.clientHeight >= this.output.scrollHeight - 4;
+    const follow = this.follow();
     for (const seg of this.parsers.get(stream).push(text)) {
       const span = document.createElement("span");
       span.className = `t-${stream}${seg.fg !== null ? ` c${seg.fg}` : ""}${seg.bold ? " b" : ""}`;
       span.textContent = seg.text;
       this.output.append(span);
     }
-    if (atBottom) this.output.scrollTop = this.output.scrollHeight;
+    follow();
+  }
+
+  /** Append an image (a plot), from `src`, a data: URL. */
+  image(src) {
+    const follow = this.follow();
+    const img = Object.assign(document.createElement("img"), { className: "t-image", alt: "Plot", src });
+    img.onload = follow; // its height is known once loaded
+    this.output.append(img);
+  }
+
+  /** A function that scrolls to the bottom of the output if it is at the
+   *  bottom now, so that what is appended in between is followed. */
+  follow() {
+    const atBottom = this.output.scrollTop + this.output.clientHeight >= this.output.scrollHeight - 4;
+    return () => { if (atBottom) this.output.scrollTop = this.output.scrollHeight; };
   }
 
   /** Make the places in the output that `find(text)` finds ([{ index,

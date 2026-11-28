@@ -33,8 +33,9 @@ library run as WebAssembly on your machine; nothing is sent to a server.
   first, but it can be removed) and **Python** 3.14 from Pyodide (13 MB,
   installed when you first run a `.py` file). `.py` files run with **Run**,
   `input()` included, and a traceback's places are links (and underlined);
-  add packages from Pyodide's (numpy, pandas, …) in the same dialog, or
-  remove them. **Format** for `.py` files uses Ruff (10 MB, installed when
+  add packages from Pyodide's (numpy, pandas, …) in the same dialog (numpy,
+  pandas and matplotlib in one click), or remove them. matplotlib's plots
+  (`plt.show()`) show in the output, as images. **Format** for `.py` files uses Ruff (10 MB, installed when
   first used), which, once installed, also lints them as you type.
 - Optional Vim key bindings (in **Options**), with `:w` to save.
 - Type-aware completion after `.` (on by default, in **Options**): in Rust,

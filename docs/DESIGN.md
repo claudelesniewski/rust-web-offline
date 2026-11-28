@@ -293,6 +293,13 @@ service worker (sw.js): precache the site, serve it and the installed
   run starts a new one. A traceback shows only the program's frames (not
   runpy's); `web/traceback.js` makes its places links, and underlines where
   the exception was raised, and the calls that led there.
+- **Plots.** If the program imports matplotlib (so Pyodide has loaded it),
+  the worker first switches it to the Agg backend (no window) and replaces
+  `matplotlib.pyplot.show`: each open figure is saved as a PNG (100 dpi),
+  closed, and posted to the page as `{ type: "image", id, mime:
+  "image/png", data }` (base64), which the terminal appends as an `<img>`
+  between the text. Figures still open when the program ends are shown so
+  too.
 - **Tests.** Rust's: the open file's crate is compiled with `--test`, and
   each test the harness lists (`--list`) runs in a process of its own
   (`<name> --exact`): in wasm, a panic aborts the program, as it can't

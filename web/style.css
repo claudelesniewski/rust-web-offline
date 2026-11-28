@@ -108,6 +108,7 @@ main.hide-files #files, main.hide-files #files-handle { display: none; }
 a.loc { color: inherit; text-decoration: underline dotted; cursor: pointer; }
 a.loc:hover { text-decoration: underline; color: #7cc4ff; }
 .t-stdin { color: var(--ok); }
+.t-image { display: block; max-width: 100%; margin: 4px 0; background: #fff; }
 .t-stderr { color: #e06c75; }
 .b { font-weight: 700; }
 .c0 { color: #5c6370; } .c1 { color: #e06c75; } .c2 { color: #98c379; } .c3 { color: #e5c07b; }
@@ -160,6 +161,8 @@ button.link { border: 0; background: none; padding: 0; color: #7cc4ff; text-deco
 #toolchains-dialog .pack h4 { margin: 0; display: flex; justify-content: space-between; align-items: center; gap: 8px; }
 #toolchains-dialog .packages { display: flex; flex-wrap: wrap; gap: 4px; margin: 6px 0; }
 #toolchains-dialog .packages span { border: 1px solid var(--border); border-radius: 4px; padding: 1px 6px; font-size: 13px; }
+#toolchains-dialog .common { align-items: center; }
+#toolchains-dialog .common span.hint { border: 0; margin: 0; }
 #toolchains-dialog .add { display: flex; gap: 6px; }
 #toolchains-dialog .add input { flex: 1; }
 

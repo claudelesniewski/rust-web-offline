@@ -12,6 +12,9 @@
 //   { type: "status", text }
 //   { type: "output", id, stream: "stdout" | "stderr", text }
 //   { type: "stdin", id }          the program waits for a line of input
+//   { type: "image", id, mime: "image/png", data }  a matplotlib figure, shown
+//                                  (by plt.show(), or open at the end); data
+//                                  is base64
 //   { type: "done", id, code, ms }
 //   { type: "test", id, name, ok, output, ms }  a test's result
 //   { type: "answer", id, value }  to "complete": [{ label, type, detail }], or
@@ -45,6 +48,7 @@ async function load() {
   pyodide.setStdout(out("stdout"));
   pyodide.setStderr(out("stderr"));
   pyodide.setStdin({ stdin: readLine });
+  pyodide.globals.set("_post_image", (data) => post({ type: "image", id: current, mime: "image/png", data }));
   await pyodide.runPythonAsync(`
 import runpy, sys, traceback
 
@@ -62,6 +66,29 @@ def _run(path):
             tb = tb.tb_next
         traceback.print_exception(type(e), e, tb)
         return 1
+    finally:
+        if "matplotlib.pyplot" in sys.modules:
+            _show_plots()  # the figures still open
+
+def _use_plots():
+    """Draw matplotlib's figures without a window (Agg), and show them in
+    the output: plt.show() sends each to the page."""
+    import matplotlib
+    matplotlib.use("Agg")
+    import matplotlib.pyplot
+    matplotlib.pyplot.show = _show_plots
+
+def _show_plots(*args, **kwargs):
+    """Each open figure, as a PNG, to the page; then closed, as a window
+    would be."""
+    import base64, io
+    from matplotlib import pyplot
+    for num in pyplot.get_fignums():
+        fig = pyplot.figure(num)
+        buf = io.BytesIO()
+        fig.savefig(buf, format="png", dpi=100)
+        pyplot.close(fig)
+        _post_image(base64.b64encode(buf.getvalue()).decode("ascii"))
 
 # jedi's kinds of names, as CodeMirror's completion types.
 _KINDS = {"module": "namespace", "class": "class", "function": "function", "keyword": "keyword",
@@ -236,6 +263,8 @@ async function run({ id, files, main }) {
   if (!pyodide) await load();
   const t0 = performance.now();
   await prepare(files);
+  // If the program imports matplotlib (installed: then it's loaded).
+  if (pyodide.loadedPackages.matplotlib) pyodide.globals.get("_use_plots")();
   const exit = pyodide.globals.get("_run")(`${SRC}/${main}`);
   post({ type: "done", id, code: exit, ms: performance.now() - t0 });
 }

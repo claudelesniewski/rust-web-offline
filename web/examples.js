@@ -100,6 +100,17 @@ name = input("What's your name? ")
 squares = [n * n for n in range(1, 6)]
 print(f"Hello, {name}! Squares: {squares}, sum {sum(squares)}")
 `,
+  "plot.py": `# A plot: add matplotlib in Options → Toolchains… (Python) first.
+import matplotlib.pyplot as plt
+
+xs = [x / 10 for x in range(-30, 31)]
+plt.plot(xs, [x * x for x in xs], label="x²")
+plt.plot(xs, [x ** 3 / 3 for x in xs], label="x³ / 3")
+plt.title("Two curves")
+plt.legend()
+plt.grid(True)
+plt.show()
+`,
   "modules.rs": `// Other files are modules: \`mod geometry;\` uses geometry.rs.
 // Create a file named geometry.rs containing:
 //     pub fn double(x: i32) -> i32 { x * 2 }

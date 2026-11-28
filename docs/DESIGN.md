@@ -304,6 +304,13 @@ service worker (sw.js): precache the site, serve it and the installed
   make the probe a method call, whose error doesn't name the type), with
   its signature and summary. In Python, jedi's `help` gives the signature
   and docstring, in the Python worker.
+- **Rename.** `web/rename.js`, like go to definition, matches text: F2
+  replaces the word's whole-word uses in every file of the open file's
+  language, skipping comments and strings (in Rust, raw and byte strings,
+  chars and lifetimes; in Python, triple-quoted and prefixed strings,
+  f-strings too, so a name in an f-string's braces is not renamed). A local
+  variable's name is renamed wherever else it is used too. Each file
+  changes by one undoable edit, in its own editor state.
 - **Python completion.** CodeMirror's Python mode completes keywords,
   builtins and the file's names. After a dot, and in imports, the editor
   asks the Python worker, which asks jedi (a package installed with the

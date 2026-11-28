@@ -10,7 +10,9 @@ library run as WebAssembly on your machine; nothing is sent to a server.
   functions), **Format** (rustfmt), and a terminal panel with stdin. Places in compiler
   errors and panics (`src/main.rs:3:7`) are links to the code. F12 (or
   Ctrl-click) goes to where a name is defined, in Rust or Python: a good
-  guess, from the code's text. Hovering over a name shows its docs: in
+  guess, from the code's text. F2 renames a name in all the project's files
+  of its language (not in strings or comments), each file's change undoable
+  with Ctrl-Z. Hovering over a name shows its docs: in
   Rust, a std type's (from the offline docs) or a method's after a dot; in
   Python, jedi's signature and docstring.
 - Projects, each with its own files, saved automatically in the browser

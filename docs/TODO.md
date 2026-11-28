@@ -1,9 +1,7 @@
 # TODO
 
-In order:
-
-1. Lint Python as you type, with Ruff (its pack formats already).
-2. Rename a symbol, across files.
-3. A command palette (Ctrl-Shift-P).
+1. Lint a Python file when it is opened, not only after an edit.
+2. Rename: tell a local variable from a name elsewhere (today, every
+   whole-word use in the language's files is renamed).
 
 `bench/ai.mjs` measures AI suggestions, in Rust and Python.

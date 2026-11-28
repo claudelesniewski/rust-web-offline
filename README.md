@@ -21,6 +21,9 @@ library run as WebAssembly on your machine; nothing is sent to a server.
   (IndexedDB). Other files are modules, in folders too: `mod foo;` uses
   `foo.rs` or `foo/mod.rs`. Import `.rs` files; export one file or a whole
   project as a `.zip`.
+- History, offline (project menu → **Commit…** and **History…**): each
+  project has a git repository of its own in the browser; commit its files,
+  see what each commit changed, and restore an earlier version.
 - Sync a project with a GitHub repository (project menu → **GitHub…**): push
   its files there, or pull them back. A Rust project is a Cargo package
   there (its files under `src/`); a Python one, the folder's `.py` files. It needs

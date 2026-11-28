@@ -303,7 +303,10 @@ service worker (sw.js): precache the site, serve it and the installed
   completion would find it at the end of the line (a call after it would
   make the probe a method call, whose error doesn't name the type), with
   its signature and summary. In Python, jedi's `help` gives the signature
-  and docstring, in the Python worker.
+  and docstring, in the Python worker; a standard library name links to
+  its place in the Python docs, whose Sphinx anchors are full names
+  (`library/json.html#json.loads`, builtins in `functions.html` and
+  `stdtypes.html`).
 - **Python completion.** CodeMirror's Python mode completes keywords,
   builtins and the file's names. After a dot, and in imports, the editor
   asks the Python worker, which asks jedi (a package installed with the

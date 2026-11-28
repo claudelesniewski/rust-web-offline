@@ -123,8 +123,25 @@ def _hover(code, path, line, col):
     for name in script.help(line, col):
         signatures = name.get_signatures()
         title = signatures[0].to_string() if signatures else f"{name.type} {name.full_name or name.name}"
-        return {"title": title, "body": name.docstring(raw=True).strip()[:2000]}
+        return {"title": title, "body": name.docstring(raw=True).strip()[:2000], "link": _docs_link(name)}
     return None
+
+def _docs_link(name):
+    """Where the Python docs (python-docs/) describe \`name\`, if it's the
+    standard library's: Sphinx's anchors are full names (json.loads)."""
+    full = name.full_name or ""
+    top = full.split(".")[0]
+    if top == "builtins":
+        rest = full[len("builtins."):]
+        page = "stdtypes" if "." in rest else "functions" if name.type == "function" else "stdtypes"
+        return f"python-docs/library/{page}.html#{rest}"
+    if not top or top not in sys.stdlib_module_names or top.startswith("_"):
+        return None
+    # The page of its module: the longest dotted prefix that is one (os.path).
+    parts = full.split(".")
+    end = len(parts) if name.type == "module" else len(parts) - 1
+    page = next((".".join(parts[:i]) for i in range(end, 0, -1) if ".".join(parts[:i]) in sys.modules), top)
+    return f"python-docs/library/{page}.html" + ("" if name.type == "module" else f"#{full}")
 
 def _problems(code):
     """The lines (from 1) of \`code\` with a syntax error, or a name that is

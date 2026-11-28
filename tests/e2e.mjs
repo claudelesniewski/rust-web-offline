@@ -603,6 +603,13 @@ try {
     await page.locator(".cm-line span", { hasText: /^half$/ }).hover();
     await page.locator(".cm-hover-doc").waitFor({ timeout: 60_000 });
     assert.match(await page.locator(".cm-hover-doc").innerText(), /^half\(x\)\n+Half of x\./);
+    assert.equal(await page.locator(".cm-hover-doc a").count(), 0); // the project's: no docs page
+    await page.mouse.move(0, 0);
+    await page.locator(".cm-hover-doc").waitFor({ state: "detached" });
+    // The standard library's link to their page in the Python docs.
+    await page.locator(".cm-line span", { hasText: /^print$/ }).hover();
+    await page.locator(".cm-hover-doc a").waitFor({ timeout: 30_000 });
+    assert.equal(await page.locator(".cm-hover-doc a").getAttribute("href"), "python-docs/library/functions.html#print");
     await page.mouse.move(0, 0);
     await setCode("calc.py", "def half(x):\n    return x / 0\n");
     await page.locator('#file-list li[data-name="oops.py"]').click();

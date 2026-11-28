@@ -5,13 +5,15 @@
 //   { type: "run", id, files, main }
 //   { type: "complete", id, files, name, line, col }  (line from 1, col from 0)
 //   { type: "lint", id, source }
+//   { type: "hover", id, files, name, line, col }
 // Messages to the page:
 //   { type: "status", text }
 //   { type: "output", id, stream: "stdout" | "stderr", text }
 //   { type: "stdin", id }          the program waits for a line of input
 //   { type: "done", id, code, ms }
 //   { type: "answer", id, value }  to "complete": [{ label, type, detail }], or
-//                                  null; to "lint": the lines with problems
+//                                  null; to "lint": the lines with problems;
+//                                  to "hover": { title, body }, or null
 //   { type: "error", id?, text }
 // Stdin: the page writes a line's bytes at offset 8 and their length (or
 // -1 for end of input) at [1] of an Int32Array over the buffer, then sets
@@ -70,6 +72,15 @@ def _complete(code, path, line, col):
     script = jedi.Script(code, path=path, project=jedi.Project("${SRC}"))
     return [{"label": c.name, "type": _KINDS.get(c.type, "variable"), "detail": c.description}
             for c in script.complete(line, col)[:200]]
+
+def _hover(code, path, line, col):
+    import jedi
+    script = jedi.Script(code, path=path, project=jedi.Project("${SRC}"))
+    for name in script.help(line, col):
+        signatures = name.get_signatures()
+        title = signatures[0].to_string() if signatures else f"{name.type} {name.full_name or name.name}"
+        return {"title": title, "body": name.docstring(raw=True).strip()[:2000]}
+    return None
 
 def _problems(code):
     """The lines (from 1) of \`code\` with a syntax error, or a name that is
@@ -152,14 +163,15 @@ async function run({ id, files, main }) {
   post({ type: "done", id, code: exit, ms: performance.now() - t0 });
 }
 
-/** Completions at a place in a file of the project, by jedi (a package of
- *  the Python pack); null if it isn't installed. */
-async function complete({ files, name, line, col }) {
+/** `fn` (_complete or _hover) at a place in a file of the project, by jedi
+ *  (a package of the Python pack); null if it isn't installed. */
+async function withJedi(fn, { files, name, line, col }) {
   try {
     await pyodide.loadPackage("jedi", { messageCallback: () => {}, errorCallback: () => {} });
     writeFiles(files);
     const code = files.find((f) => f.name === name)?.content ?? "";
-    return pyodide.globals.get("_complete")(code, `${SRC}/${name}`, line, col).toJs({ dict_converter: Object.fromEntries });
+    const value = pyodide.globals.get(fn)(code, `${SRC}/${name}`, line, col);
+    return value?.toJs ? value.toJs({ dict_converter: Object.fromEntries }) : value ?? null;
   } catch {
     return null; // not installed (offline), or jedi failed
   }
@@ -180,7 +192,9 @@ onmessage = ({ data: m }) => {
   } else if (m.type === "run") {
     queue = queue.then(() => run(m)).catch((e) => post({ type: "error", id: m.id, text: String(e?.message ?? e) }));
   } else if (m.type === "complete") {
-    queue = queue.then(() => answer(m, complete));
+    queue = queue.then(() => answer(m, (r) => withJedi("_complete", r)));
+  } else if (m.type === "hover") {
+    queue = queue.then(() => answer(m, (r) => withJedi("_hover", r)));
   } else if (m.type === "lint") {
     queue = queue.then(() => answer(m, ({ source }) => pyodide.globals.get("_problems")(source).toJs()));
   }

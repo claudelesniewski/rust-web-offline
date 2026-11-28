@@ -32,9 +32,9 @@ function suggester(answer, { members = null, errors = "" } = {}) {
     complete: async (prefix, signal, { grammar }) => { calls.grammar = grammar; return answer; },
     ai: rust,
     members: members && (async () => members),
-    rejects: async (source, line) => {
+    check: async (source, line) => {
       calls.checked = source;
-      return errorOnLine(errors, "main.rs", line);
+      return errorOnLine(errors, "main.rs", line) ? { fixed: null } : null;
     },
   });
   return { suggest, calls };
@@ -87,7 +87,8 @@ test("the model is told the file and given the project's other files, as its lan
 });
 
 test("Python: a comment alone is no suggestion, nor one the check rejects", async () => {
-  const make = (answer, rejected) => createSuggester({ complete: async () => answer, ai: python, rejects: async () => rejected });
+  const make = (answer, rejected) => createSuggester({ complete: async () => answer, ai: python,
+    check: async () => (rejected ? { fixed: null } : null) });
   assert.equal(await make("# a note", false)("x = 1\n", 6), "");
   assert.equal(await make("print(x)  # show", false)("x = 1\n", 6), "print(x)");
   assert.equal(await make("print(y)", true)("x = 1\n", 6), "");
@@ -96,4 +97,43 @@ test("Python: a comment alone is no suggestion, nor one the check rejects", asyn
 test("a Python line that opens a block gets a body, to be checked alone", () => {
   assert.equal(withBlockBody("def f():\n    if x:\nprint(1)", 2), "def f():\n    if x:\n        pass\nprint(1)");
   assert.equal(withBlockBody("x = 1\n", 1), "x = 1\n");
+});
+
+test("the toolchain's fix of the line is suggested, checked again; not one that changes what was typed", async () => {
+  const doc = "fn main() {\n    let mut s = String::new();\n    std::io::stdin().\n}\n";
+  const pos = doc.indexOf("().") + 3;
+  const make = (fixed) => {
+    const seen = [];
+    const suggest = createSuggester({
+      complete: async () => "read_line(s);",
+      ai: rust,
+      check: async (source, line) => {
+        const text = source.split("\n")[line - 1];
+        seen.push(text);
+        return text.includes("&mut s") ? null : { fixed: fixed(text) };
+      },
+    });
+    return { suggest, seen };
+  };
+  const good = make((text) => text.replace("(s)", "(&mut s)"));
+  assert.equal(await good.suggest(doc, pos), "read_line(&mut s);");
+  assert.deepEqual(good.seen, ["    std::io::stdin().read_line(s);", "    std::io::stdin().read_line(&mut s);"]);
+  assert.equal(await make((text) => text.replace("std::io::", "io::")).suggest(doc, pos), "");
+  assert.equal(await make(() => null).suggest(doc, pos), "");
+});
+
+test("after a dot, a member that fails is tried again without it, if retries are asked for", async () => {
+  const asked = [];
+  const suggest = createSuggester({
+    complete: async (prefix, signal, { grammar }) => {
+      asked.push(grammar);
+      return grammar.includes('"read_line"') && !grammar.includes('"read"') ? "read_line(&mut s);" : "read(s);";
+    },
+    ai: rust,
+    members: async () => [{ label: "read" }, { label: "read_line" }],
+    check: async (source) => (source.includes("read(s)") ? { fixed: null } : null),
+    retries: 1,
+  });
+  assert.equal(await suggest("x.", 2), "read_line(&mut s);");
+  assert.equal(asked.length, 2);
 });

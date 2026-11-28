@@ -5,7 +5,8 @@ import { LANGUAGES } from "./languages.js";
 import { loadModel } from "./lm.js";
 import * as packs from "./packs.js";
 import { createSuggester, withBlockBody } from "./suggest.js";
-import { createTypeCompletion, errorOnLine } from "./types.js";
+import { fixOnLine } from "./diagnostics.js";
+import { createTypeCompletion } from "./types.js";
 
 /** A worker's answers to requests: `ask(message)` posts it with an id and
  *  resolves with the message back that `answerOf(m)` finds for it. */
@@ -38,12 +39,12 @@ const askPython = requests(python, (m) => (m.type === "answer" ? { value: m.valu
 function toolchain(language, others) {
   const files = (doc) => [{ name: language.ext === ".rs" ? "main.rs" : "main.py", content: doc }, ...others];
   if (language.id === "rust") {
-    const check = (source) => askRust({ type: "check", files: files(source), main: "main.rs" });
+    const check = (source, json = false) => askRust({ type: "check", files: files(source), main: "main.rs", json });
     const types = createTypeCompletion({ check, fetchText: async (p) => (await fetch(p)).text() });
     return {
       main: "main.rs",
       members: (doc, from, to) => types(doc, from, to, files(doc).map((f) => f.content), "main.rs"),
-      rejects: async (source, line) => errorOnLine(await check(source), "main.rs", line),
+      check: async (source, line) => fixOnLine(await check(source, true), "main.rs", line, source.split("\n")[line - 1]),
     };
   }
   return {
@@ -54,7 +55,8 @@ function toolchain(language, others) {
         line: before.split("\n").length, col: to - before.lastIndexOf("\n") - 1 });
       return options?.length ? options : null;
     },
-    rejects: async (source, line) => (await askPython({ type: "lint", source: withBlockBody(source, line) })).includes(line),
+    check: async (source, line) => ((await askPython({ type: "lint", source: withBlockBody(source, line) })).includes(line)
+      ? { fixed: null } : null),
   };
 }
 
@@ -82,7 +84,7 @@ export async function run(suites, configs) {
       const rows = [];
       // Once first, so that no case counts the toolchain's loading.
       const warm = toolchain(language, []);
-      await warm.rejects(documentOf(language, cases[0].code), 1);
+      await warm.check(documentOf(language, cases[0].code), 1);
       await warm.members("x = [].", 7, 7);
       for (const { code, expect, others = [] } of cases) {
         const tools = toolchain(language, others);
@@ -90,16 +92,18 @@ export async function run(suites, configs) {
           complete: model.complete,
           ai,
           members: config.constrain ? tools.members : null,
-          rejects: config.check ? tools.rejects : null,
+          check: config.check ? tools.check : null,
           main: () => tools.main,
           others: () => others,
+          fixes: config.fixes,
+          retries: config.retries,
         });
         const doc = documentOf(language, code);
         const t0 = performance.now();
         const text = await suggest(doc, code.length, null);
         const ms = Math.round(performance.now() - t0);
         const line = code.split("\n").length;
-        const checked = !!text.trim() && !(await tools.rejects(code + text + doc.slice(code.length), line));
+        const checked = !!text.trim() && !(await tools.check(code + text + doc.slice(code.length), line));
         rows.push({ text, ok: new RegExp(expect).test(text.replace(/^\s+/, "")), checked, ms });
       }
       results[name][id] = rows;

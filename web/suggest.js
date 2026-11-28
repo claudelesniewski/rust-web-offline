@@ -4,8 +4,10 @@
 //   Python's jedi), and a grammar (llama.cpp's GBNF) holds the model to them.
 // - The suggestion is checked in place, and not shown if the toolchain finds
 //   an error on its line (rustc's, or for Python, a syntax error or a name
-//   bound nowhere). (Sampling others when it does was tried, for Rust: it
-//   found one more right line in 18, and made suggestions 40% slower.)
+//   bound nowhere), unless the fixes rustc suggests mend it (`&mut input`
+//   for `input`), or, after a dot, the next member the model picks does.
+//   (Sampling others when it fails was tried, for Rust: it found one more
+//   right line in 18, and made suggestions 40% slower.)
 
 /** A GBNF grammar for the rest of a line that starts with one of `members`,
  *  of which `typed` is already written. Null if none fits. */
@@ -46,34 +48,57 @@ export function withBlockBody(source, line) {
  * language's, from web/languages.js) says how it is laid out.
  * `members(doc, from, to)`: completion options after a dot ([] if nothing
  * is there, null if unknown), or null to not constrain.
- * `rejects(source, line)`: whether the toolchain finds an error on `line`
- * (from 1) of the program with `source` as file `main()`, or null to not
- * check. Returns `suggest(doc, pos, signal)`.
+ * `check(source, line)`: null if the toolchain finds no error on `line`
+ * (from 1) of the program with `source` as file `main()`, else { fixed }:
+ * that line with the fixes the toolchain suggests, or null; or `check` is
+ * null to not check. A fixed line is checked again, up to `fixes` times.
+ * After a dot, a suggestion that fails the check is tried again without
+ * its member, up to `retries` times. Returns `suggest(doc, pos, signal)`.
  */
-export function createSuggester({ complete, ai, members = null, rejects = null, main = () => "main.rs", others = () => [] }) {
+export function createSuggester({ complete, ai, members = null, check = null, main = () => "main.rs", others = () => [],
+  fixes = 2, retries = 1 }) {
   const cut = (text) => withoutComment(text, ai);
   return async function suggest(doc, pos, signal) {
     const prefix = doc.slice(0, pos);
     const suffix = doc.slice(pos);
-    let grammar = null;
     const dot = members && prefix.match(/\.(\w*)$/);
+    let options = null;
     if (dot) {
-      const options = await members(doc, pos - dot[1].length, pos);
+      options = (await members(doc, pos - dot[1].length, pos))?.map((o) => o.label) ?? null;
       if (options && !options.length) return ""; // nothing there to call
-      if (options) grammar = memberGrammar(options.map((o) => o.label), dot[1]);
     }
     // In code, a comment at the end is chatter; one alone always compiles,
     // and is no use as a suggestion. (In a comment, all is comment.)
     const line = prefix.slice(prefix.lastIndexOf("\n") + 1);
-    const raw = await complete(prefix, signal, {
-      grammar,
-      repo: ai.repo,
-      file: ai.path(main()),
-      others: others().map((o) => ({ ...o, name: ai.path(o.name) })),
-    });
-    const text = cut(line) !== line ? raw : cut(raw);
-    if (!text.trim() || signal?.aborted) return "";
-    if (rejects && (await rejects(prefix + text + suffix, prefix.split("\n").length))) return "";
-    return text;
+    const rest = suffix.slice(0, (suffix + "\n").indexOf("\n"));
+    const lineNo = prefix.split("\n").length;
+    /** `text`, or as the toolchain fixes it; "" if it fails the check. */
+    const checked = async (text) => {
+      for (let i = 0; ; i++) {
+        const problem = await check(prefix + text + suffix, lineNo);
+        if (!problem) return text;
+        const { fixed } = problem;
+        // A fix may only change what the suggestion wrote.
+        if (i >= fixes || !fixed?.startsWith(line) || !fixed.endsWith(rest) || fixed.length < line.length + rest.length) return "";
+        text = fixed.slice(line.length, fixed.length - rest.length);
+      }
+    };
+    for (let attempt = 0; attempt <= retries; attempt++) {
+      const grammar = options && memberGrammar(options, dot[1]);
+      if (options && !grammar) return ""; // no member left to try
+      const raw = await complete(prefix, signal, {
+        grammar,
+        repo: ai.repo,
+        file: ai.path(main()),
+        others: others().map((o) => ({ ...o, name: ai.path(o.name) })),
+      });
+      const text = cut(line) !== line ? raw : cut(raw);
+      if (!text.trim() || signal?.aborted) return "";
+      if (!check) return text;
+      const good = await checked(text);
+      if (good.trim() || !options) return good;
+      options = options.filter((o) => o !== dot[1] + /^\w*/.exec(text)[0]);
+    }
+    return "";
   };
 }

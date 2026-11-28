@@ -9,10 +9,11 @@
 // and `others` the project's other files. The groups: "tune", for trying
 // prompts and constraints on; "held-out", unlike those, to tell whether a
 // change only fits them; "multi-file", where the right line needs another
-// file. Configurations ({ name: { constrain, check, ai } }) turn on holding
-// the model to the members there after a dot, and checking the suggestion
-// with the toolchain; `ai` ({ language: { repo } }) tries another name for
-// the repository in the prompt. The real model is downloaded once (145 MB) into
+// file. Configurations ({ name: { constrain, check, fixes, retries, ai } })
+// turn on holding the model to the members there after a dot, and checking
+// the suggestion with the toolchain; `fixes` and `retries` override
+// createSuggester's (web/suggest.js), and `ai` ({ language: { repo } })
+// tries another name for the repository in the prompt. The real model is downloaded once (145 MB) into
 // build/cache/ai-bench; set V=1 to see each suggestion.
 import { createHash } from "node:crypto";
 import { cpSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";

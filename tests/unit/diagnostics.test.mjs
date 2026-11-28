@@ -51,3 +51,26 @@ test("colours are ignored, and notes' places are not diagnostics", () => {
     message: "this function takes 1 argument but 0 arguments were supplied",
   }]);
 });
+
+test("rustc's suggested fixes, from its JSON diagnostics, applied to the line", async () => {
+  const { fixOnLine } = await import("../../web/diagnostics.js");
+  const span = (o) => ({ file_name: "src/main.rs", line_start: 3, line_end: 3, is_primary: true, suggested_replacement: null, ...o });
+  const diagnostic = (level, spans, children = []) => JSON.stringify({ level, spans, children });
+  const text = "    std::io::stdin().read_line(input);";
+  const fix = (column, replacement, applicability = "MachineApplicable") =>
+    ({ spans: [span({ column_start: column, column_end: column, suggested_replacement: replacement, suggestion_applicability: applicability })] });
+  const output = [
+    diagnostic("error", [span({ column_start: 32, column_end: 37 })], [{ spans: [] }, fix(32, "&mut ")]),
+    diagnostic("warning", [span({ column_start: 5, column_end: 8 })], [fix(5, "let _ = ")]),
+    "not JSON",
+  ].join("\n");
+  assert.deepEqual(fixOnLine(output, "main.rs", 3, text), { fixed: "    std::io::stdin().read_line(&mut input);" });
+  // Not this line, or not an error: no problem.
+  assert.equal(fixOnLine(output, "main.rs", 4, text), null);
+  assert.equal(fixOnLine(diagnostic("warning", [span({})]), "main.rs", 3, text), null);
+  // Alternatives at the same place: the first; placeholders: none.
+  const two = diagnostic("error", [span({ column_start: 32, column_end: 37 })], [fix(32, "&mut "), fix(32, "&")]);
+  assert.deepEqual(fixOnLine(two, "main.rs", 3, text), { fixed: "    std::io::stdin().read_line(&mut input);" });
+  const placeholder = diagnostic("error", [span({ column_start: 32, column_end: 37 })], [fix(32, "/* value */", "HasPlaceholders")]);
+  assert.deepEqual(fixOnLine(placeholder, "main.rs", 3, text), { fixed: null });
+});

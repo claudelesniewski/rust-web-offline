@@ -751,6 +751,13 @@ try {
     await setCode("calc.py", "def half(x):\n    return y / 2\n");
     await page.locator(".cm-lintRange-warning").waitFor({ timeout: 10_000 });
     assert.equal(await page.locator(".cm-lintRange-warning").innerText(), "y");
+    // And when a file is opened, before any edit: after a reload, say.
+    await page.reload();
+    await waitReady();
+    await page.locator('#file-list li[data-name="oops.py"]').click();
+    await page.locator('#file-list li[data-name="calc.py"]').click();
+    await page.locator(".cm-lintRange-warning").waitFor({ timeout: 30_000 });
+    assert.equal(await page.locator(".cm-lintRange-warning").innerText(), "y");
     // A syntax error hides the rules' findings.
     await setCode("calc.py", "def half(:\n    return y\n");
     await page.locator(".cm-lintRange-error").waitFor({ timeout: 10_000 });

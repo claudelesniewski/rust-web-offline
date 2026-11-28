@@ -76,6 +76,8 @@
           <button id="new-project">New project…</button>
           <button id="rename-project">Rename project…</button>
           <button id="delete-project">Delete project…</button>
+          <button id="commit-project" title="Record the project's files in its history, on this device">Commit…</button>
+          <button id="history-project" title="The project's commits: see what changed, restore a version">History…</button>
           <button id="github-project">GitHub…</button>
         </div>
       </details>
@@ -126,6 +128,18 @@
     <button id="sync-pull">Pull</button>
     <button id="sync-push" class="primary">Push</button>
     <button id="sync-close">Close</button>
+  </div>
+</dialog>
+<dialog id="history-dialog">
+  <h3>History</h3>
+  <p class="hint">The project's commits, kept on this device (Commit… adds one). Choose one to see the
+    files it changed.</p>
+  <ul id="history-list"></ul>
+  <p id="history-status" role="status"></p>
+  <ul id="history-changes"></ul>
+  <div class="buttons">
+    <button id="history-restore" disabled>Restore this version</button>
+    <button id="history-close">Close</button>
   </div>
 </dialog>
 <dialog id="find-dialog">

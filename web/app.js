@@ -12,6 +12,7 @@ import { createRustHover } from "./hover.js";
 import { createSuggester, withBlockBody } from "./suggest.js";
 import { createGitHub } from "./github.js";
 import * as sync from "./sync.js";
+import * as history from "./history.js";
 import { initLayout } from "./layout.js";
 import { find, replaceAll } from "./find.js";
 import { rank } from "./palette.js";
@@ -397,6 +398,69 @@ function setupSync() {
   });
 }
 
+// ---- History (a git repository per project, on this device) ---------------
+
+let gitFs; // the repositories' filesystem, made on first use
+/** Project `id`'s repository, for web/history.js. */
+async function repoOf(id = project) {
+  const { git, FS } = await import("./git.js");
+  return { git, fs: (gitFs ??= new FS("rust-offline-git")), dir: `/${id}` };
+}
+
+const plural = (n, word) => `${n} ${word}${n === 1 ? "" : "s"}`;
+
+async function commitProject() {
+  $("project-menu").open = false;
+  flushSaves();
+  const message = prompt("Commit message:", "")?.trim();
+  if (!message) return;
+  try {
+    const oid = await history.commit(await repoOf(), files, message);
+    setStatus(oid ? `Committed ${short(oid)}.` : "Nothing to commit: no changes since the last commit.");
+  } catch (e) {
+    alert(`Could not commit: ${e.message}`);
+  }
+}
+
+async function openHistory() {
+  $("project-menu").open = false;
+  flushSaves();
+  const repo = await repoOf();
+  const list = $("history-list");
+  const restore = $("history-restore");
+  list.textContent = "";
+  $("history-changes").textContent = "";
+  restore.disabled = true;
+  const commits = await history.log(repo);
+  $("history-status").textContent = commits.length ? "" : "No commits yet: Commit… adds one.";
+  for (const c of commits) {
+    const li = document.createElement("li");
+    const span = (cls, text) => Object.assign(document.createElement("span"), { className: cls, textContent: text });
+    li.append(span("message", c.message), span("meta", `${plural(c.changes.length, "file")} · ${new Date(c.time).toLocaleString()}`));
+    li.onclick = () => {
+      list.querySelector(".selected")?.classList.remove("selected");
+      li.classList.add("selected");
+      $("history-status").textContent = `Commit ${short(c.oid)} changed:`;
+      $("history-changes").replaceChildren(...c.changes.map(({ name, status }) =>
+        Object.assign(document.createElement("li"), { textContent: `${status[0].toUpperCase()} ${name}` })));
+      restore.disabled = false;
+      restore.onclick = async () => {
+        if (!confirm(`Replace this project's files with those of "${c.message}"? Changes not committed are lost.`)) return;
+        await replaceFiles(await history.filesAt(repo, c.oid));
+        $("history-status").textContent = `Restored the files of ${short(c.oid)}: commit them to record it.`;
+      };
+    };
+    list.append(li);
+  }
+  $("history-dialog").showModal();
+}
+
+function setupHistory() {
+  $("commit-project").onclick = commitProject;
+  $("history-project").onclick = openHistory;
+  $("history-close").onclick = () => $("history-dialog").close();
+}
+
 function setupProjectActions() {
   $("project").onchange = (e) => openProject(e.target.value);
   const menu = $("project-menu");
@@ -423,6 +487,7 @@ function setupProjectActions() {
     saveTimers.clear();
     const gone = project;
     await store.deleteProject(gone);
+    await history.removeRepo(await repoOf(gone));
     projects.delete(gone);
     if (projects.size === 0) await createProject("My project", [["main.rs", EXAMPLES["hello.rs"]]]);
     await openProject([...projects.keys()][0]);
@@ -593,6 +658,8 @@ function commands() {
     { label: "Export file", run: click("export") },
     { label: "Export all", run: click("export-all") },
     { label: "New project…", run: click("new-project") },
+    { label: "Commit…", run: click("commit-project") },
+    { label: "History…", run: click("history-project") },
     { label: "GitHub sync…", run: click("github-project") },
     { label: "Find in files…", keys: "Ctrl-Shift-F", run: openFind },
     { label: "Go to definition", keys: "F12", run: () => editor.goToDefinition() },
@@ -1317,6 +1384,7 @@ $("format").onclick = format;
 setupFileActions();
 setupProjectActions();
 setupSync();
+setupHistory();
 setupFind();
 setupPalette();
 loadProjects().catch((e) => setStatus(`Could not load your files: ${e}`));

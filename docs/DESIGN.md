@@ -253,6 +253,31 @@ service worker (sw.js): precache the site, serve it and the installed
   first if there are changes not pushed. What was last synced (commit and
   files) is kept per project, to tell changes here from changes there.
 
+- **History.** Each project has a git repository on this device, made on
+  its first commit: `web/history.js`, with isomorphic-git and lightning-fs
+  (a filesystem in IndexedDB, database `rust-offline-git`), bundled from
+  `vendor/git.js` into `git.js` (290 KB, 90 KB gzipped; loaded on first
+  use). The repository of project `id` is the folder `/id`, branch `main`.
+  A commit mirrors the project's files into its working folder (writing
+  those changed, removing those deleted, as in the index) and commits them,
+  or does nothing if none changed. History lists the commits from HEAD, each
+  with the files it changed from its first parent (comparing the trees'
+  blob ids); restoring a commit replaces the project's files with its own,
+  without committing. Deleting a project deletes its repository.
+
+  Not built yet, the way to GitHub: these are real git objects, so a push
+  could replay local commits through the Git Data API that sync uses
+  (`POST /git/blobs`, `/git/trees`, `/git/commits`, then the ref), keeping
+  the mapping of local to remote commits, as GitHub's ids differ unless the
+  author, times and layout (Cargo's `src/`) match byte for byte; pull, the
+  reverse, writing GitHub's commits into the repository with
+  `git.writeObject`. Or isomorphic-git's own `push`/`fetch`, over the smart
+  HTTP protocol, which needs a CORS proxy, as github.com's git endpoints
+  send no CORS headers. With branches (`git.branch`, `git.checkout`), an
+  offline review of a pull request is the commits and file changes between
+  its branch and `main` (`git.findMergeBase`, then the trees compared as
+  History does, with a line diff per file), fetched while online.
+
 - **Toolchains ("packs").** Each language's toolchain is a pack, installed
   from the Toolchains dialog rather than precached with the site (2 MB):
   `packs.json` pins each pack's files by SHA-256, and `web/packs.js`

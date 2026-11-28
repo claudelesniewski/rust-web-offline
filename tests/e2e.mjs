@@ -582,6 +582,44 @@ try {
     await page.locator('#file-list li[data-name="shapes.rs"]').waitFor();
   });
 
+  await step("a project's history: commit, commit again, restore the first", async () => {
+    await page.locator("#project-menu summary").click();
+    page.once("dialog", (d) => d.accept("Versions"));
+    await page.locator("#new-project").click();
+    await page.waitForFunction(() => document.querySelector("#project").selectedOptions[0]?.text === "Versions");
+    const commit = async (message) => {
+      await page.locator("#project-menu summary").click();
+      page.once("dialog", (d) => d.accept(message));
+      await page.locator("#commit-project").click();
+      await page.locator("#status", { hasText: "Committed" }).waitFor();
+      await page.locator("#status").evaluate((el) => { el.textContent = ""; });
+    };
+    await setCode("main.rs", 'fn main() { println!("one"); }\n');
+    await commit("First");
+    await setCode("main.rs", 'fn main() { println!("two"); }\n');
+    page.once("dialog", (d) => d.accept("extra.rs"));
+    await page.locator("#new-file").click();
+    await commit("Second");
+
+    await page.locator("#project-menu summary").click();
+    await page.locator("#history-project").click();
+    const commits = page.locator("#history-list li");
+    await commits.nth(1).waitFor();
+    assert.deepEqual(await page.locator("#history-list .message").allInnerTexts(), ["Second", "First"]);
+    assert.match(await commits.nth(0).innerText(), /2 files/);
+    await commits.nth(0).click();
+    assert.deepEqual(await page.locator("#history-changes li").allInnerTexts(), ["A extra.rs", "M main.rs"]);
+    await commits.nth(1).click();
+    page.once("dialog", (d) => d.accept()); // "Replace this project's files…?"
+    await page.locator("#history-restore").click();
+    await page.locator("#history-status", { hasText: "Restored" }).waitFor();
+    await page.locator("#history-close").click();
+    assert.deepEqual(await page.locator("#file-list li").allInnerTexts(), ["main.rs"]);
+    assert.match(await run(), /^one$/m);
+    await page.locator("#project").selectOption({ label: "My project" });
+    await page.locator('#file-list li[data-name="shapes.rs"]').waitFor();
+  });
+
   await step("Python: installed when first needed, with input()", async () => {
     await page.locator("#examples").selectOption("hello.py");
     await page.locator('#file-list li.active[data-name="hello.py"]').waitFor();

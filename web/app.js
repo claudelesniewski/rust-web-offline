@@ -8,6 +8,7 @@ import { zip } from "./zip.js";
 import * as store from "./store.js";
 import * as lm from "./lm.js";
 import { createTypeCompletion } from "./types.js";
+import { createRustHover } from "./hover.js";
 import { createSuggester, withBlockBody } from "./suggest.js";
 import { createGitHub } from "./github.js";
 import * as sync from "./sync.js";
@@ -980,6 +981,20 @@ const typeCompletion = createTypeCompletion({ check, fetchText: async (path) => 
  *  the type the compiler finds; in Python, as jedi finds them. */
 const members = (doc, from, to) => (active.endsWith(".rs") ? typeCompletion(doc, from, to, [...files.values()], active)
   : active.endsWith(".py") ? pythonMembers(doc, from, to) : null);
+
+const rustHover = createRustHover({ members: (doc, from, to) => typeCompletion(doc, from, to, [...files.values()], active),
+  fetchText: async (path) => (await fetch(path)).text() });
+
+/** Docs on hover: Rust's from the offline docs, Python's from jedi. */
+function hover(doc, from, to) {
+  if (active.endsWith(".rs")) return rustHover(doc, from, to);
+  if (!active.endsWith(".py")) return null;
+  const before = doc.slice(0, from);
+  const list = [...files].map(([name, content]) => ({ name, content: name === active ? doc : content }));
+  return askPython({ type: "hover", files: list, name: active,
+    line: before.split("\n").length, col: from - before.lastIndexOf("\n") - 1 });
+}
+editor.setHover(hover);
 
 function setTypes(on) {
   $("types").checked = on;

@@ -274,6 +274,13 @@ service worker (sw.js): precache the site, serve it and the installed
   run starts a new one. A traceback shows only the program's frames (not
   runpy's); `web/traceback.js` makes its places links, and underlines where
   the exception was raised, and the calls that led there.
+- **Hover docs.** `web/hover.js`: in Rust, a name in the offline docs'
+  type index (`docs/types.json`) shows its page's first paragraph, with a
+  link to the page; a word after a dot is looked up as type-aware
+  completion would find it at the end of the line (a call after it would
+  make the probe a method call, whose error doesn't name the type), with
+  its signature and summary. In Python, jedi's `help` gives the signature
+  and docstring, in the Python worker.
 - **Python completion.** CodeMirror's Python mode completes keywords,
   builtins and the file's names. After a dot, and in imports, the editor
   asks the Python worker, which asks jedi (a package installed with the

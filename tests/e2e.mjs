@@ -298,6 +298,8 @@ try {
   await step("AI suggestions", async () => {
     page.once("dialog", (d) => d.accept()); // "AI model: SmolLM2-135M isn't installed. Download it?"
     await page.locator("#options summary").click();
+    // The recommended model first, after Off.
+    assert.equal(await page.locator("#ai option").nth(1).textContent(), "Qwen2.5-Coder-0.5B (531 MB), recommended");
     await page.locator("#ai").selectOption("model-smollm2-135m");
     await page.locator("#options summary").click();
     await aiReady(page);

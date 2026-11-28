@@ -1080,8 +1080,12 @@ const models = async () => Object.entries(await packs.available()).filter(([, pa
 
 /** List the models in the AI suggestions menu. */
 async function listModels() {
-  for (const [id, pack] of await models()) {
-    $("ai").add(new Option(`${pack.title.replace(/^AI model: /, "")} (${mb(packs.size(pack))} MB)`, id));
+  // The recommended one first: right about twice as often in Rust as the
+  // smallest, on bench/.
+  const list = (await models()).sort(([, a], [, b]) => (b.recommended ?? false) - (a.recommended ?? false));
+  for (const [id, pack] of list) {
+    const name = `${pack.title.replace(/^AI model: /, "")} (${mb(packs.size(pack))} MB)`;
+    $("ai").add(new Option(pack.recommended ? `${name}, recommended` : name, id));
   }
 }
 

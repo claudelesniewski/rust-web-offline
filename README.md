@@ -45,7 +45,7 @@ library run as WebAssembly on your machine; nothing is sent to a server.
   Choose one of five models, each downloaded when first chosen (and listed
   in Toolchains, to remove): from SmolLM2-135M (145 MB, fastest, often
   wrong) to Qwen2.5-Coder-0.5B (531 MB, about twice as slow, right about
-  twice as often in Rust).
+  twice as often in Rust: listed first, as recommended).
 - Offline documentation (**Docs** menu): the Rust Book, the Reference, and
   the std, core and alloc API docs with search; and Python's tutorial,
   library and language reference with search (a 6 MB pack, **Python docs**,

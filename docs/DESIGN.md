@@ -192,6 +192,13 @@ service worker (sw.js): precache the site, serve it and the installed
   The check's gain is otherwise in what it hides: of Rust's 59, the model
   alone shows 41 wrong lines, and the app 20. Python's check
   has no fixes to offer, and a second pick of a member found none better.
+  Showing the model the signature of the member it picks (as a comment
+  above the line: `// read_line(&self, buf: &mut String) -> …`) didn't
+  help either: picking the member first, then the rest with its signature,
+  got 21 or 19 Rust lines of 59 right with SmolLM2-135M, against 24, and 44
+  or 48 with Qwen2.5-Coder-0.5B, against 52 (picked alone, the name runs on
+  into a longer one, `push` into `push_mut`, unless it must end there); and
+  only when the check fails, to write the rest again, 24 and 52, slower.
   Filling in the middle (the code after the cursor too, with the
   tokenizer's `<fim_…>` tokens) made the model write nonsense: 0 and 1
   right, so it wasn't trained to. Python's

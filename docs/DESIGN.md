@@ -293,6 +293,23 @@ service worker (sw.js): precache the site, serve it and the installed
   run starts a new one. A traceback shows only the program's frames (not
   runpy's); `web/traceback.js` makes its places links, and underlines where
   the exception was raised, and the calls that led there.
+- **Running JavaScript and TypeScript.** `web/js-worker.js`, a new worker
+  per run (so Stop terminates it and globals start afresh), runs the open
+  file as an ES module. Each project file it imports, and they import
+  (`web/js-modules.js`, dependencies first; a cycle is an error), becomes
+  a Blob URL, with the relative specifiers of its imports rewritten (by
+  text) to its dependencies' URLs; `./util.js` may name `util.ts`, as in
+  TypeScript. `.ts` files are first transpiled by the TypeScript pack's
+  compiler (`typescript.js`, 9 MB, from npm via jsDelivr), with
+  `transpileModule`: types stripped, syntax errors reported as
+  `file.ts:line:col`, no type checking. `console.log` and `console.error`
+  write to the terminal (values shown much as Node shows them);
+  `input()` (or `prompt()`) blocks on the same SharedArrayBuffer as
+  Python's. The program ends once the main module has run (top-level
+  `await` included) and the timers it set have fired or been cleared, or
+  at an uncaught error, whose stack trace names the project's files (its
+  Blob URLs mapped back, through TypeScript's source maps for `.ts`), as
+  links.
 - **Tests.** Rust's: the open file's crate is compiled with `--test`, and
   each test the harness lists (`--list`) runs in a process of its own
   (`<name> --exact`): in wasm, a panic aborts the program, as it can't
@@ -341,6 +358,8 @@ service worker (sw.js): precache the site, serve it and the installed
   reporting under 4 GB of RAM). Very large programs may run out.
 - Python: only packages that Pyodide builds for WebAssembly (no PyTorch, for
   one).
+- JavaScript and TypeScript: only the project's own modules, no npm
+  packages; no Test or Format for them yet.
 - Standard library only; one crate per run; programs are wasm, so no
   processes, networking or real filesystem.
 - The toolchain is a nightly using the Cranelift backend. Its author reports

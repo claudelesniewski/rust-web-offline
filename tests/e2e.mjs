@@ -18,12 +18,13 @@ cpSync("build/site", site, { recursive: true });
 const model = readFileSync("build/cache/toolchain/test/stories260K.gguf");
 writeFileSync(join(site, "test-model.gguf"), model);
 const testModel = { name: "test-model.gguf", sha256: createHash("sha256").update(model).digest("hex"), size: model.length };
-// The Python and Ruff packs come from the files fetch-toolchain.sh pinned,
+// The Python, Ruff and TypeScript packs come from the files fetch-toolchain.sh pinned,
 // not the CDN.
 const packsJson = JSON.parse(readFileSync(join(site, "packs.json"), "utf8"));
-for (const id of ["pyodide", "ruff"]) cpSync(`build/cache/toolchain/test/${id}`, join(site, `test-${id}`), { recursive: true });
+for (const id of ["pyodide", "ruff", "typescript"]) cpSync(`build/cache/toolchain/test/${id}`, join(site, `test-${id}`), { recursive: true });
 packsJson.python.base = "test-pyodide/";
 packsJson.ruff.base = "test-ruff/";
+packsJson.typescript.base = "test-typescript/";
 packsJson["model-smollm2-135m"] = { ...packsJson["model-smollm2-135m"], base: "", files: [testModel] };
 writeFileSync(join(site, "packs.json"), JSON.stringify(packsJson));
 const server = await serve(site);
@@ -43,7 +44,7 @@ async function step(name, fn) {
   console.log(`ok - ${name} (${((Date.now() - t0) / 1000).toFixed(1)} s)`);
 }
 
-/** Run Python file `name`, the active one, to its end. */
+/** Run Python, JavaScript or TypeScript file `name`, the active one, to its end. */
 async function runPython(name) {
   await page.locator("#run:not([disabled])").click();
   await page.waitForFunction((n) => document.querySelector("#output").innerText.startsWith(`Running ${n}`)
@@ -765,6 +766,59 @@ try {
     assert.equal(await page.locator(".cm-lintRange-warning").count(), 0);
     await setCode("calc.py", "def half(x):\n    return x / 0\n");
     await page.locator(".cm-lintRange-error").waitFor({ state: "detached" });
+  });
+
+  /** A new file `name` with `code` in it, open. */
+  async function newFile(name, code) {
+    page.once("dialog", (d) => d.accept(name));
+    await page.locator("#new-file").click();
+    await setCode(name, code);
+  }
+
+  await step("JavaScript: runs in the browser, with input(), imports, errors' places as links, and Stop", async () => {
+    await page.locator("#examples").selectOption("hello.js");
+    await page.locator('#file-list li.active[data-name="hello.js"]').waitFor();
+    await page.locator("#run:not([disabled])").click();
+    await page.locator("#output", { hasText: "What's your name?" }).waitFor({ timeout: 30_000 });
+    await page.locator("#stdin").fill("Ada");
+    await page.locator("#stdin").press("Enter");
+    await page.locator("#output", { hasText: "Exited with code 0" }).waitFor({ timeout: 30_000 });
+    assert.match(await output(), /Hello, Ada! Squares: 1,4,9,16,25, sum 55/);
+    // Another file's module, and an error it throws.
+    await newFile("half.js", 'export function half(x) {\n  if (x < 0) throw new RangeError("negative");\n  return x / 2;\n}\n');
+    await newFile("use_half.js", 'import { half } from "./half.js";\n\nconsole.log(half(8), { ok: [true] });\nconsole.log(half(-1));\n');
+    await runPython("use_half.js");
+    assert.match(await output(), /^4 \{ ok: \[true\] \}$/m);
+    assert.match(await output(), /Uncaught RangeError: negative\n\s+at half \(half\.js:2:20\)\n\s+at use_half\.js:4:13[^]*Exited with code 1/);
+    assert.doesNotMatch(await output(), /blob:|js-worker/);
+    await page.locator("#output a.loc", { hasText: "half.js:2:20" }).click();
+    await page.locator('#file-list li.active[data-name="half.js"]').waitFor();
+    assert.equal(await page.locator(".cm-activeLine").innerText(), '  if (x < 0) throw new RangeError("negative");');
+    // A program that never ends: timers keep it running, until stopped.
+    await setCode("use_half.js", 'setInterval(() => console.log("tick"), 50);\n');
+    await page.locator("#run:not([disabled])").click();
+    await page.locator("#output", { hasText: "tick" }).waitFor({ timeout: 30_000 });
+    await page.locator("#stop").click();
+    await page.locator("#output", { hasText: "Stopped." }).waitFor();
+    await page.locator("#run:not([disabled])").waitFor();
+  });
+
+  await step("TypeScript: installed when first needed, types stripped, its errors' places in the .ts", async () => {
+    await newFile("shape.ts", 'import { half } from "./half.js";\n\ninterface Point {\n  x: number;\n}\n\n' +
+      "const p: Point = { x: 84 };\nconsole.log(half(p.x));\nthrow new TypeError(`bad ${p.x}`);\n");
+    page.once("dialog", (d) => d.accept()); // "TypeScript isn't installed. Download it?"
+    await page.locator("#run:not([disabled])").click();
+    await page.locator("#output", { hasText: /Exited with code 1/ }).waitFor({ timeout: 60_000 });
+    assert.match(await output(), /^42$[^]*Uncaught TypeError: bad 84\n\s+at shape\.ts:9:7/m);
+    await page.locator('#file-list li[data-name="half.js"]').click();
+    await page.locator("#output a.loc", { hasText: "shape.ts:9:7" }).click();
+    await page.locator('#file-list li.active[data-name="shape.ts"]').waitFor();
+    assert.equal(await page.locator(".cm-activeLine").innerText(), "throw new TypeError(`bad ${p.x}`);");
+    // A syntax error, as TypeScript reports it.
+    await setCode("shape.ts", "let x: = 1;\n");
+    await page.locator("#run:not([disabled])").click();
+    await page.locator("#output", { hasText: /error TS1110[^]*Exited with code 1/ }).waitFor({ timeout: 30_000 });
+    assert.match(await output(), /shape\.ts:1:8 - error TS1110: Type expected\.[^]*Exited with code 1/);
   });
 
   await step("Rust is a toolchain too: removed, then installed again when needed", async () => {

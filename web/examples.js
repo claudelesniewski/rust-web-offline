@@ -100,6 +100,20 @@ name = input("What's your name? ")
 squares = [n * n for n in range(1, 6)]
 print(f"Hello, {name}! Squares: {squares}, sum {sum(squares)}")
 `,
+  "hello.js": `// JavaScript, run by the browser: input() reads a line from the terminal.
+const name = input("What's your name? ");
+const squares = [1, 2, 3, 4, 5].map((n) => n * n);
+console.log(\`Hello, \${name}! Squares: \${squares}, sum \${squares.reduce((a, b) => a + b)}\`);
+`,
+  "hello.ts": `// TypeScript, from the TypeScript pack: installed the first time you run it.
+interface Point {
+  x: number;
+  y: number;
+}
+
+const distance = (a: Point, b: Point): number => Math.hypot(a.x - b.x, a.y - b.y);
+console.log(\`Distance: \${distance({ x: 0, y: 0 }, { x: 3, y: 4 })}\`);
+`,
   "modules.rs": `// Other files are modules: \`mod geometry;\` uses geometry.rs.
 // Create a file named geometry.rs containing:
 //     pub fn double(x: i32) -> i32 { x * 2 }

@@ -17,8 +17,8 @@
 # Test model: a 1 MB llama.cpp test model (MIT), which tests/e2e.mjs uses in
 # place of the real one to test AI suggestions. Test Pyodide: the Python
 # pack's files (as in web/packs.json), a small package and jedi (completion),
-# and test Ruff, the Ruff pack's, which tests/e2e.mjs serves in place of the
-# CDN.
+# test Ruff and test TypeScript, the Ruff and TypeScript packs' files, which
+# tests/e2e.mjs serves in place of the CDN.
 #
 # Mirror: these files are also published as a release of this repository,
 # named after a hash of the pins below, by .github/workflows/mirror.yml, so
@@ -40,6 +40,7 @@ DOCS="https://static.rust-lang.org/dist/$NIGHTLY/rust-docs-nightly-x86_64-unknow
 PYTHON_DOCS="https://www.python.org/ftp/python/doc/3.14.2/python-3.14.2-docs-html.tar.bz2"
 PYODIDE="https://cdn.jsdelivr.net/pyodide/v314.0.8/full"
 RUFF="https://cdn.jsdelivr.net/npm/@astral-sh/ruff-wasm-web@0.17.6"
+TYPESCRIPT="https://cdn.jsdelivr.net/npm/typescript@6.0.3/lib"
 TEST_MODEL="https://huggingface.co/ggml-org/models-moved/resolve/499bc8821c6b12b4e53c5bffcb21ec206f212d81/tinyllamas/stories260K.gguf"
 # sha256, path under build/cache/toolchain, and URL if not $BASE/path.
 PINS="
@@ -64,6 +65,7 @@ e14d49ceca9b4a0e274ea918f3a898de2d3880b6e5573a6cfe1a2267ecc70329  test/pyodide/p
 6a4e296bc54f0e3489ce61ff9f30e9538dc382bdae10fa6413b34000883385d8  test/pyodide/parso-0.8.6-py2.py3-none-any.whl  $PYODIDE/parso-0.8.6-py2.py3-none-any.whl
 8a90aec3c47c6d0b06a0930d2ff7be0b584e15fc7c09768f74717fc8b5103d0e  test/ruff/ruff_wasm.js  $RUFF/ruff_wasm.js
 aee635cd86fd718af224d460e786422a76eeae4c59719eb89f6925f9514d39e1  test/ruff/ruff_wasm_bg.wasm  $RUFF/ruff_wasm_bg.wasm
+569177652966bd528c319171c7dd22860dbf72bde116cbc4f644f1d02bb12e39  test/typescript/typescript.js  $TYPESCRIPT/typescript.js
 "
 
 TAG="toolchain-$(printf '%s' "$PINS" | sha256sum | cut -c1-12)"

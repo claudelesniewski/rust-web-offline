@@ -8,12 +8,16 @@ const KEYWORDS = {
     "while abstract become box do final macro override priv typeof unsized virtual yield _").split(" ")),
   python: new Set(("False None True and as assert async await break class continue def del elif else except " +
     "finally for from global if import in is lambda nonlocal not or pass raise return try while with yield").split(" ")),
+  javascript: new Set(("await break case catch class const continue debugger default delete do else enum export " +
+    "extends false finally for function if import in instanceof let new null return super switch this throw true " +
+    "try typeof var void while with yield").split(" ")),
 };
+KEYWORDS.typescript = KEYWORDS.javascript;
 
 const IDENT = /^[A-Za-z_][A-Za-z0-9_]*$/;
 
-/** Why `from` can't be renamed to `to` in `language` ("rust" or
- *  "python"), or null if it can. */
+/** Why `from` can't be renamed to `to` in `language` (a language's id, as
+ *  in web/languages.js), or null if it can. */
 export function renameError(from, to, language) {
   if (!IDENT.test(to)) return `${to} is not a name`;
   if (KEYWORDS[language].has(to)) return `${to} is a keyword`;
@@ -24,7 +28,7 @@ export function renameError(from, to, language) {
 /** `text` (in `language`) with each use of the name `from` outside strings
  *  and comments replaced by `to`: { text, count }. */
 export function renameIn(text, from, to, language) {
-  const skip = language === "python" ? skipPython : skipRust;
+  const skip = { python: skipPython, javascript: skipJs, typescript: skipJs }[language] ?? skipRust;
   let out = "";
   let count = 0;
   let i = 0;
@@ -114,4 +118,19 @@ function skipPython(text, i, prefix = "") {
   const quote = text[i];
   if (quote !== '"' && quote !== "'") return i;
   return endOfQuoted(text, i, text.startsWith(quote.repeat(3), i) ? quote.repeat(3) : quote);
+}
+
+/** In JavaScript or TypeScript, the end of the comment or string at `i`
+ *  (a template literal whole, its ${} too), or `i` if there is none. */
+function skipJs(text, i, prefix = "") {
+  if (prefix) return i;
+  if (text.startsWith("//", i)) {
+    const nl = text.indexOf("\n", i);
+    return nl < 0 ? text.length : nl;
+  }
+  if (text.startsWith("/*", i)) {
+    const end = text.indexOf("*/", i + 2);
+    return end < 0 ? text.length : end + 2;
+  }
+  return /["'`]/.test(text[i] ?? "") ? endOfQuoted(text, i, text[i]) : i;
 }

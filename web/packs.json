@@ -54,6 +54,19 @@
       }
     ]
   },
+  "typescript": {
+    "title": "TypeScript 6.0",
+    "about": "The TypeScript 6.0.3 compiler (Apache-2.0), which strips the types from .ts files so that they run as JavaScript. It doesn't check them.",
+    "base": "https://cdn.jsdelivr.net/npm/typescript@6.0.3/lib/",
+    "dir": "packs/typescript/",
+    "files": [
+      {
+        "name": "typescript.js",
+        "sha256": "569177652966bd528c319171c7dd22860dbf72bde116cbc4f644f1d02bb12e39",
+        "size": 9144216
+      }
+    ]
+  },
   "model-smollm2-135m": {
     "title": "AI model: SmolLM2-135M",
     "about": "The smallest and fastest (Apache-2.0, 8 bits). On bench/ (59 lines each), 24 Rust lines right and 42 Python.",

@@ -47,4 +47,12 @@ test("the new name must be a name, and not a keyword", () => {
   assert.equal(renameError("x", "fn", "python"), null);
   assert.equal(renameError("x", "lambda", "python"), "lambda is a keyword");
   assert.equal(renameError("struct", "y", "rust"), "struct can't be renamed");
+  assert.equal(renameError("x", "class", "typescript"), "class is a keyword");
+});
+
+test("JavaScript and TypeScript: leave comments, strings and template literals alone", () => {
+  const js = (text, language = "javascript") => renameIn(text, "x", "y", language).text;
+  assert.equal(js("x // x\n/* x */ x"), "y // x\n/* x */ y");
+  assert.equal(js("f(x, 'x', \"x\", `x ${x}`) x"), "f(y, 'x', \"x\", `x ${x}`) y");
+  assert.equal(js("let x: number = 1;", "typescript"), "let y: number = 1;");
 });

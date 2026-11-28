@@ -1,4 +1,4 @@
-// CodeMirror 6 with Rust highlighting, bundled by scripts/build.sh into editor.js.
+// CodeMirror 6 with Rust, Python, JavaScript and TypeScript highlighting, bundled by scripts/build.sh into editor.js.
 import { basicSetup } from "codemirror";
 import { Compartment, EditorState } from "@codemirror/state";
 import { EditorView, hoverTooltip, keymap, tooltips } from "@codemirror/view";
@@ -8,6 +8,7 @@ import { acceptCompletion, closeCompletion, ifNotIn, startCompletion } from "@co
 import { lintGutter, setDiagnostics } from "@codemirror/lint";
 import { rust, rustLanguage } from "@codemirror/lang-rust";
 import { python, pythonLanguage } from "@codemirror/lang-python";
+import { javascript } from "@codemirror/lang-javascript";
 import { oneDark } from "@codemirror/theme-one-dark";
 import { pythonCompletions, rustCompletions } from "./completion.js";
 import { acceptGhost, dropGhost, ghostText } from "./ghost.js";
@@ -100,8 +101,8 @@ export function createEditor(parent, { onChange, keys = [], onSave = () => {}, o
     tooltips({ parent: document.body }),
     basicSetup,
     indentUnit.of("    "),
-    // The language, by the file's name: Rust, or Python for .py.
-    name.endsWith(".py") ? python() : rust(),
+    // The language, by the file's name: Rust, or Python for .py, or JavaScript or TypeScript.
+    name.endsWith(".py") ? python() : /\.[jt]s$/.test(name) ? javascript({ typescript: name.endsWith(".ts") }) : rust(),
     rustLanguage.data.of({
       autocomplete: ifNotIn(["String", "RawString", "Char", "LineComment", "BlockComment"],
         rustCompletions((...args) => members?.(...args) ?? null)),

@@ -6,6 +6,8 @@ import * as rustErrors from "./diagnostics.js";
 import * as rustDefinitions from "./definitions.js";
 import * as pythonErrors from "./traceback.js";
 import * as pythonDefinitions from "./python-definitions.js";
+import * as jsModules from "./js-modules.js";
+import * as jsDefinitions from "./js-definitions.js";
 
 /** A Cargo.toml for a package named after `project`. */
 export function cargoToml(project) {
@@ -32,10 +34,17 @@ export const LANGUAGES = [
   { id: "python", name: "Python", ext: ".py", pack: "python",
     findLocations: pythonErrors.findLocations, findDefinition: pythonDefinitions.findDefinition,
     ai: { repo: "python-examples", path: (name) => name, comment: "#", quotes: "\"'" } },
+  { id: "javascript", name: "JavaScript", ext: ".js",
+    findLocations: jsModules.findLocations, findDefinition: jsDefinitions.findDefinition,
+    ai: { repo: "js-examples", path: (name) => name, comment: "//", quotes: "\"'`" } },
+  // Run as JavaScript once the TypeScript pack strips its types.
+  { id: "typescript", name: "TypeScript", ext: ".ts", pack: "typescript",
+    findLocations: jsModules.findLocations, findDefinition: jsDefinitions.findDefinition,
+    ai: { repo: "js-examples", path: (name) => name, comment: "//", quotes: "\"'`" } },
 ];
 
 /** The places in the project that `text` names, as any language does. */
-export const findLocations = (text) => LANGUAGES.flatMap((l) => l.findLocations(text)).sort((a, b) => a.index - b.index);
+export const findLocations = (text) => [...new Set(LANGUAGES.map((l) => l.findLocations))].flatMap((find) => find(text)).sort((a, b) => a.index - b.index);
 
 /** The language of file `name`, or undefined. */
 export const languageOf = (name) => LANGUAGES.find((l) => name.endsWith(l.ext));

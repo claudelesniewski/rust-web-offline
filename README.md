@@ -36,6 +36,12 @@ library run as WebAssembly on your machine; nothing is sent to a server.
   add packages from Pyodide's (numpy, pandas, …) in the same dialog, or
   remove them. **Format** for `.py` files uses Ruff (10 MB, installed when
   first used), which, once installed, also lints them as you type.
+  **JavaScript** (`.js`) needs no toolchain: the browser runs the open
+  file, and the project's files it imports (`import { f } from "./util.js"`),
+  as ES modules, with `console.log` to the terminal and `input()` reading a
+  line; places in an uncaught error's stack trace are links. **TypeScript**
+  (`.ts`) runs the same once the TypeScript pack (9 MB, installed when
+  first needed) strips its types; it doesn't check them.
 - Optional Vim key bindings (in **Options**), with `:w` to save.
 - Type-aware completion after `.` (on by default, in **Options**): in Rust,
   the compiler finds the type, and the offline docs list its methods (and
@@ -78,4 +84,5 @@ The documentation is the `rust-docs` component of the same nightly
 (MIT/Apache-2.0). The deployed site includes the toolchain's licences (`toolchain/licenses.html`,
 `browser-kernel/LICENSE`).
 Python is [Pyodide](https://pyodide.org) (MPL-2.0), downloaded from the
-jsDelivr CDN only if installed.
+jsDelivr CDN only if installed; so is the
+[TypeScript](https://www.typescriptlang.org) compiler (Apache-2.0).

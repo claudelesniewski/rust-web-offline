@@ -677,12 +677,12 @@ function setupPalette() {
 
 const terminal = new Terminal($("output"), $("stdin"), {
   onInput: (text) => {
-    if (runningPython) pythonInput(text);
+    if (runningPython || script) programInput(text);
     else compiler?.postMessage({ type: "stdin", id: current, text });
   },
   onEof: () => {
     terminal.write("info", "^D\n");
-    if (runningPython) pythonInput(null);
+    if (runningPython || script) programInput(null);
     else compiler?.postMessage({ type: "eof", id: current });
   },
   // A place in the code, in an error or a panic: go there.
@@ -771,6 +771,8 @@ function showDiagnostics(list) {
 function finishRequest() {
   current = null;
   runningPython = false;
+  script?.terminate();
+  script = null;
   tests = null;
   terminal.setRunning(false);
   setBusy(false);
@@ -785,6 +787,7 @@ function rustReady() {
 
 function run() {
   if (active.endsWith(".py")) return runPython();
+  if (isScript(active)) return runScript();
   if (current !== null || !rustReady()) return;
   flushSaves();
   current = nextId++;
@@ -807,6 +810,7 @@ let tests = null;
  *  file. Each test's result shows as it comes (showTest), then a summary. */
 async function runTests() {
   if (current !== null) return;
+  if (isScript(active)) return setStatus(`There are no tests for ${languageOf(active).name} yet: Run runs the file.`);
   const isPython = active.endsWith(".py");
   if (isPython ? !(await ensurePack("python")) : !rustReady()) return;
   flushSaves();
@@ -843,6 +847,7 @@ function endTests(m) {
 
 function format() {
   if (active.endsWith(".py")) return formatPythonFile();
+  if (isScript(active)) return setStatus(`There is no formatter for ${languageOf(active).name} yet.`);
   if (current !== null || !rustReady()) return;
   current = nextId++;
   setBusy(true);
@@ -886,6 +891,10 @@ function scheduleLint() {
 
 function stop() {
   if (current === null) return;
+  if (script) {
+    terminal.write("info", "\nStopped.\n");
+    return finishRequest();
+  }
   if (runningPython) {
     // Python can't be stopped from outside: start it afresh next time.
     python.terminate();
@@ -896,33 +905,57 @@ function stop() {
   compiler.postMessage({ type: "kill", id: current });
 }
 
+// ---- A Python or JavaScript program's stdin ----------------------------------
+
+/** The program's stdin, shared with its worker (see python-worker.js). */
+let stdin = null;
+/** Lines typed before the program asked for them; whether it is asking. */
+const stdinQueue = [];
+let stdinWaiting = false;
+
+/** The buffer to give a worker for its program's stdin. */
+function sharedStdin() {
+  if (!stdin) {
+    const shared = new SharedArrayBuffer(8 + 65536);
+    stdin = { shared, ctrl: new Int32Array(shared, 0, 2), bytes: new Uint8Array(shared, 8) };
+  }
+  return stdin.shared;
+}
+
+/** Forget the lines typed for an earlier program. */
+function resetStdin() {
+  stdinQueue.length = 0;
+  stdinWaiting = false;
+}
+
+/** Give the waiting program `line`, or the end of its input (null). */
+function sendStdin(line) {
+  const { ctrl, bytes } = stdin;
+  const encoded = line === null ? null : new TextEncoder().encode(line).subarray(0, bytes.length);
+  if (encoded) bytes.set(encoded);
+  ctrl[1] = encoded ? encoded.length : -1;
+  Atomics.store(ctrl, 0, 1);
+  Atomics.notify(ctrl, 0);
+  stdinWaiting = false;
+}
+
+function programInput(line) {
+  if (stdinWaiting) sendStdin(line);
+  else stdinQueue.push(line);
+}
+
+/** The program asks for a line. */
+function onStdinRequest() {
+  if (stdinQueue.length) sendStdin(stdinQueue.shift());
+  else stdinWaiting = true;
+}
+
 // ---- Python ----------------------------------------------------------------
 
 let python = null; // its worker, started on the first run
 let runningPython = false;
 /** What the program in progress wrote to stderr, for its traceback. */
 let pythonErrors = "";
-/** The program's stdin, shared with the worker (see python-worker.js). */
-let pythonStdin = null;
-/** Lines typed before the program asked for them; whether it is asking. */
-const pythonQueue = [];
-let pythonWaiting = false;
-
-/** Give the waiting program `line`, or the end of its input (null). */
-function sendStdin(line) {
-  const { ctrl, bytes } = pythonStdin;
-  const encoded = line === null ? null : new TextEncoder().encode(line).subarray(0, bytes.length);
-  if (encoded) bytes.set(encoded);
-  ctrl[1] = encoded ? encoded.length : -1;
-  Atomics.store(ctrl, 0, 1);
-  Atomics.notify(ctrl, 0);
-  pythonWaiting = false;
-}
-
-function pythonInput(line) {
-  if (pythonWaiting) sendStdin(line);
-  else pythonQueue.push(line);
-}
 
 /** Requests to the Python worker in progress, other than runs: id -> resolve. */
 const pythonRequests = new Map();
@@ -962,9 +995,7 @@ async function pythonCheck(source, line) {
 
 function startPython() {
   python = new Worker("python-worker.js", { type: "module" });
-  const shared = new SharedArrayBuffer(8 + 65536);
-  pythonStdin = { ctrl: new Int32Array(shared, 0, 2), bytes: new Uint8Array(shared, 8) };
-  python.postMessage({ type: "init", stdin: shared });
+  python.postMessage({ type: "init", stdin: sharedStdin() });
   python.onmessage = ({ data: m }) => {
     if (m.type === "status") setStatus(m.text);
     else if (m.type === "answer") {
@@ -976,8 +1007,7 @@ function startPython() {
       terminal.write(m.stream, m.text);
       if (m.stream === "stderr") pythonErrors += m.text;
     } else if (m.type === "stdin") {
-      if (pythonQueue.length) sendStdin(pythonQueue.shift());
-      else pythonWaiting = true;
+      onStdinRequest();
     } else if (m.type === "test") {
       showTest(m);
     } else if (m.type === "done" && tests) {
@@ -999,8 +1029,7 @@ async function runPython() {
   flushSaves();
   current = nextId++;
   runningPython = true;
-  pythonQueue.length = 0;
-  pythonWaiting = false;
+  resetStdin();
   pythonErrors = "";
   showDiagnostics([]);
   setBusy(true);
@@ -1010,6 +1039,45 @@ async function runPython() {
   if (!python) startPython();
   const list = [...files].map(([name, content]) => ({ name, content }));
   python.postMessage({ type: "run", id: current, files: list, main: active });
+}
+
+// ---- JavaScript and TypeScript -------------------------------------------------
+
+/** The worker running a JavaScript or TypeScript program, one per run. */
+let script = null;
+
+/** Whether `name` is a JavaScript or TypeScript file. */
+const isScript = (name) => /\.[jt]s$/.test(name);
+
+/** Run the open file and the project's files it imports (web/js-worker.js),
+ *  installing TypeScript first if the project has a .ts file (asking). */
+async function runScript() {
+  if (current !== null) return;
+  if ([...files.keys()].some((n) => n.endsWith(".ts")) && !(await ensurePack("typescript"))) return;
+  flushSaves();
+  const id = (current = nextId++);
+  resetStdin();
+  showDiagnostics([]);
+  setBusy(true);
+  terminal.clear();
+  terminal.write("info", `Running ${active}…\n`);
+  terminal.setRunning(true);
+  script = new Worker("js-worker.js", { type: "module" });
+  script.postMessage({ type: "init", stdin: sharedStdin() });
+  script.onmessage = ({ data: m }) => {
+    if (m.id !== id || current !== id) return; // from a run that was stopped
+    if (m.type === "output") terminal.write(m.stream, m.text);
+    else if (m.type === "stdin") onStdinRequest();
+    else if (m.type === "done") {
+      terminal.linkify(findLocations, (file) => files.has(file));
+      terminal.write("info", `\nExited with code ${m.code} after ${secs(m.ms)}.\n`);
+      finishRequest();
+    } else if (m.type === "error") {
+      terminal.write("stderr", `${m.text}\n`);
+      finishRequest();
+    }
+  };
+  script.postMessage({ type: "run", id, files: projectFiles(), main: active });
 }
 
 // ---- Toolchains (packs) ------------------------------------------------------

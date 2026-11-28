@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 import { CompletionContext } from "@codemirror/autocomplete";
 import { EditorState } from "@codemirror/state";
-import { rustCompletions } from "../../vendor/completion.js";
+import { pythonCompletions, rustCompletions } from "../../vendor/completion.js";
 
 /** Completions at the `|` in `doc`. */
 async function complete(doc, explicit = false) {
@@ -47,4 +47,23 @@ test("after a dot, the type's methods when they are known", async () => {
     new CompletionContext(state, pos, false));
   // Common methods are ranked first.
   assert.deepEqual(result.options, [{ ...typed[0], boost: 1 }, typed[1]]);
+});
+
+test("Python asks for members after a dot, and for names in imports, and nowhere else", async () => {
+  const asked = [];
+  const source = pythonCompletions((doc, from, to) => {
+    asked.push(doc.slice(from, to));
+    return [{ label: "upper" }];
+  });
+  const at = async (doc) => {
+    const pos = doc.indexOf("|");
+    const state = EditorState.create({ doc: doc.replace("|", "") });
+    return source(new CompletionContext(state, pos, false));
+  };
+  assert.deepEqual(await at("s = 'x'\ns.up|"), { from: 10, options: [{ label: "upper" }], validFor: /^\w*$/ });
+  for (const doc of ["import o|", "import os, sy|", "from coll|", "from os import pa|", "from os import (sep, pa|", "x.|"]) {
+    assert.ok(await at(doc), doc);
+  }
+  for (const doc of ["pri|", "x = le|", "def f(a|"]) assert.equal(await at(doc), null, doc);
+  assert.deepEqual(asked, ["up", "o", "sy", "coll", "pa", "pa", ""]);
 });

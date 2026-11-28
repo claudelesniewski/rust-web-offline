@@ -715,6 +715,28 @@ function pythonInput(line) {
   else pythonQueue.push(line);
 }
 
+/** Completion requests to the Python worker in progress: id -> resolve. */
+const pythonCompletions = new Map();
+
+/** jedi's completions at `to` in the open Python file (`doc`), or null. */
+async function pythonMembers(doc, from, to) {
+  if (runningPython || !(await packs.isInstalled((await packs.available()).python))) return null;
+  if (!python) startPython();
+  const id = nextId++;
+  const before = doc.slice(0, to);
+  const list = [...files].map(([name, content]) => ({ name, content: name === active ? doc : content }));
+  return new Promise((resolve) => {
+    pythonCompletions.set(id, resolve);
+    python.postMessage({ type: "complete", id, files: list, name: active,
+      line: before.split("\n").length, col: to - before.lastIndexOf("\n") - 1 });
+    // Python loads once, which takes a while; if stopped, never.
+    setTimeout(() => {
+      pythonCompletions.delete(id);
+      resolve(null);
+    }, 20_000);
+  });
+}
+
 function startPython() {
   python = new Worker("python-worker.js", { type: "module" });
   const shared = new SharedArrayBuffer(8 + 65536);
@@ -722,7 +744,10 @@ function startPython() {
   python.postMessage({ type: "init", stdin: shared });
   python.onmessage = ({ data: m }) => {
     if (m.type === "status") setStatus(m.text);
-    else if (m.id !== current) {
+    else if (m.type === "completions") {
+      pythonCompletions.get(m.id)?.(m.options);
+      pythonCompletions.delete(m.id);
+    } else if (m.id !== current) {
       // From a run that was stopped.
     } else if (m.type === "output") {
       terminal.write(m.stream, m.text);
@@ -935,13 +960,15 @@ function check(source) {
 
 const typeCompletion = createTypeCompletion({ check, fetchText: async (path) => (await fetch(path)).text() });
 
-/** Rust files only: the compiler finds the type. */
-const typeMembers = (doc, from, to) => (active.endsWith(".rs") ? typeCompletion(doc, from, to, [...files.values()], active) : null);
+/** The members after a dot (and in Python, names in imports): in Rust, of
+ *  the type the compiler finds; in Python, as jedi finds them. */
+const members = (doc, from, to) => (active.endsWith(".rs") ? typeCompletion(doc, from, to, [...files.values()], active)
+  : active.endsWith(".py") ? pythonMembers(doc, from, to) : null);
 
 function setTypes(on) {
   $("types").checked = on;
   store.setSetting("types", on);
-  editor.setTypeMethods(on ? typeMembers : null);
+  editor.setMembers(on ? members : null);
 }
 
 $("types").onchange = (e) => setTypes(e.target.checked);

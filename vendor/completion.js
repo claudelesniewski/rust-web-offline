@@ -77,3 +77,19 @@ export function rustCompletions(typeMethods = () => null) {
     };
   };
 }
+
+/** Python completion where CodeMirror's own (keywords, builtins, the file's
+ *  names) knows nothing: after a dot, and of modules and their names in
+ *  imports, from `members(doc, from, to)` (options, or null). */
+export function pythonCompletions(members = () => null) {
+  return async (context) => {
+    const word = context.matchBefore(/\w*$/);
+    const line = context.state.doc.lineAt(context.pos);
+    const before = context.state.sliceDoc(line.from, word.from);
+    const inImport = /^\s*(?:import\s+[\w.,\s]*|from\s+[\w.]*|from\s+[\w.]+\s+import\s+\(?[\w,\s]*)$/.test(before);
+    if (!before.endsWith(".") && !inImport) return null;
+    const options = await members(context.state.doc.toString(), word.from, context.pos);
+    if (!options || context.aborted) return null;
+    return { from: word.from, options, validFor: /^\w*$/ };
+  };
+}

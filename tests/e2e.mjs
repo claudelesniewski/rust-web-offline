@@ -526,6 +526,18 @@ try {
     assert.equal(await page.locator(".cm-lintRange-info").innerText(), "calc.half(4)");
   });
 
+  await step("F12 in Python goes to where an imported module defines the name", async () => {
+    // Into `half`, in `print(calc.half(4))`, the last line.
+    await page.locator(".cm-content").click();
+    await page.keyboard.press("ControlOrMeta+End");
+    await page.keyboard.press("ArrowUp");
+    await page.keyboard.press("End");
+    for (let i = 0; i < 6; i++) await page.keyboard.press("ArrowLeft");
+    await page.keyboard.press("F12");
+    await page.locator('#file-list li.active[data-name="calc.py"]').waitFor();
+    assert.equal(await page.locator(".cm-activeLine").innerText(), "def half(x):");
+  });
+
   await step("Rust is a toolchain too: removed, then installed again when needed", async () => {
     await page.locator("#options summary").click();
     await page.locator("#toolchains-open").click();

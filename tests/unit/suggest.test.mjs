@@ -1,6 +1,10 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { createSuggester, memberGrammar, withoutComment } from "../../web/suggest.js";
+import { LANGUAGES } from "../../web/languages.js";
+import { createSuggester, memberGrammar, withBlockBody, withoutComment } from "../../web/suggest.js";
+import { errorOnLine } from "../../web/types.js";
+
+const [rust, python] = LANGUAGES.map((l) => l.ai);
 
 test("the member grammar starts the line with a member, as a whole word", () => {
   assert.equal(memberGrammar(["push", "pop", "len"], "p"),
@@ -15,15 +19,23 @@ test("comments at the end are cut, but not // in strings", () => {
   assert.equal(withoutComment('println!("\\"//"); // b'), 'println!("\\"//");');
   assert.equal(withoutComment("// all comment"), "");
   assert.equal(withoutComment("no comment  "), "no comment  ");
+  // Python's: # comments, and strings in either quotes.
+  assert.equal(withoutComment("x = 1  # one", python), "x = 1");
+  assert.equal(withoutComment("s = '#' + \"'#\"  # hash", python), "s = '#' + \"'#\"");
+  assert.equal(withoutComment("x = a // b", python), "x = a // b");
 });
 
-/** A suggester with a fake model answering `answer`, and fake toolchain. */
+/** A suggester with a fake model answering `answer`, and fake rustc. */
 function suggester(answer, { members = null, errors = "" } = {}) {
   const calls = { grammar: undefined, checked: null };
   const suggest = createSuggester({
     complete: async (prefix, signal, { grammar }) => { calls.grammar = grammar; return answer; },
+    ai: rust,
     members: members && (async () => members),
-    check: async (source) => { calls.checked = source; return errors; },
+    rejects: async (source, line) => {
+      calls.checked = source;
+      return errorOnLine(errors, "main.rs", line);
+    },
   });
   return { suggest, calls };
 }
@@ -60,14 +72,28 @@ test("comments: none alone or at the end in code, but all of it in a comment", a
   assert.equal(await suggester("numbers // up").suggest(comment, comment.length), "numbers // up");
 });
 
-test("the model is told the file and given the project's other files", async () => {
+test("the model is told the file and given the project's other files, as its language lays them out", async () => {
   let seen;
-  const suggest = createSuggester({
-    complete: async (prefix, signal, opts) => { seen = opts; return "1;"; },
-    main: () => "app.rs",
-    others: () => [{ name: "geometry.rs", content: "pub fn area() {}" }],
+  const make = (ai, main, other) => createSuggester({
+    complete: async (prefix, signal, opts) => { seen = opts; return "1"; },
+    ai,
+    main: () => main,
+    others: () => [{ name: other, content: "x" }],
   });
-  assert.equal(await suggest("let x = ", 8), "1;");
-  assert.equal(seen.file, "app.rs");
-  assert.deepEqual(seen.others, [{ name: "geometry.rs", content: "pub fn area() {}" }]);
+  assert.equal(await make(rust, "app.rs", "geometry.rs")("let x = ", 8), "1");
+  assert.deepEqual([seen.repo, seen.file, seen.others], ["rust-examples", "src/app.rs", [{ name: "src/geometry.rs", content: "x" }]]);
+  assert.equal(await make(python, "app.py", "util.py")("x = ", 4), "1");
+  assert.deepEqual([seen.repo, seen.file, seen.others], ["python-examples", "app.py", [{ name: "util.py", content: "x" }]]);
+});
+
+test("Python: a comment alone is no suggestion, nor one the check rejects", async () => {
+  const make = (answer, rejected) => createSuggester({ complete: async () => answer, ai: python, rejects: async () => rejected });
+  assert.equal(await make("# a note", false)("x = 1\n", 6), "");
+  assert.equal(await make("print(x)  # show", false)("x = 1\n", 6), "print(x)");
+  assert.equal(await make("print(y)", true)("x = 1\n", 6), "");
+});
+
+test("a Python line that opens a block gets a body, to be checked alone", () => {
+  assert.equal(withBlockBody("def f():\n    if x:\nprint(1)", 2), "def f():\n    if x:\n        pass\nprint(1)");
+  assert.equal(withBlockBody("x = 1\n", 1), "x = 1\n");
 });

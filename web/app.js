@@ -7,8 +7,8 @@ import { EXAMPLES } from "./examples.js";
 import { zip } from "./zip.js";
 import * as store from "./store.js";
 import * as lm from "./lm.js";
-import { createTypeCompletion } from "./types.js";
-import { createSuggester } from "./suggest.js";
+import { createTypeCompletion, errorOnLine } from "./types.js";
+import { createSuggester, withBlockBody } from "./suggest.js";
 import { createGitHub } from "./github.js";
 import * as sync from "./sync.js";
 import { initLayout } from "./layout.js";
@@ -715,26 +715,40 @@ function pythonInput(line) {
   else pythonQueue.push(line);
 }
 
-/** Completion requests to the Python worker in progress: id -> resolve. */
-const pythonCompletions = new Map();
+/** Requests to the Python worker in progress, other than runs: id -> resolve. */
+const pythonRequests = new Map();
 
-/** jedi's completions at `to` in the open Python file (`doc`), or null. */
-async function pythonMembers(doc, from, to) {
+/** The Python worker's answer to `message` (a "complete" or a "lint"), or
+ *  null: if Python isn't installed, or a program runs. */
+async function askPython(message) {
   if (runningPython || !(await packs.isInstalled((await packs.available()).python))) return null;
   if (!python) startPython();
   const id = nextId++;
-  const before = doc.slice(0, to);
-  const list = [...files].map(([name, content]) => ({ name, content: name === active ? doc : content }));
   return new Promise((resolve) => {
-    pythonCompletions.set(id, resolve);
-    python.postMessage({ type: "complete", id, files: list, name: active,
-      line: before.split("\n").length, col: to - before.lastIndexOf("\n") - 1 });
+    pythonRequests.set(id, resolve);
+    python.postMessage({ ...message, id });
     // Python loads once, which takes a while; if stopped, never.
     setTimeout(() => {
-      pythonCompletions.delete(id);
+      pythonRequests.delete(id);
       resolve(null);
     }, 20_000);
   });
+}
+
+/** jedi's completions at `to` in the open Python file (`doc`), or null
+ *  (none counts as not known: jedi often can't tell). */
+async function pythonMembers(doc, from, to) {
+  const before = doc.slice(0, to);
+  const list = [...files].map(([name, content]) => ({ name, content: name === active ? doc : content }));
+  const options = await askPython({ type: "complete", files: list, name: active,
+    line: before.split("\n").length, col: to - before.lastIndexOf("\n") - 1 });
+  return options?.length ? options : null;
+}
+
+/** Whether Python finds a problem on `line` of `source`: a syntax error,
+ *  or a name bound nowhere. */
+async function pythonRejects(source, line) {
+  return (await askPython({ type: "lint", source: withBlockBody(source, line) }))?.includes(line) ?? false;
 }
 
 function startPython() {
@@ -744,9 +758,9 @@ function startPython() {
   python.postMessage({ type: "init", stdin: shared });
   python.onmessage = ({ data: m }) => {
     if (m.type === "status") setStatus(m.text);
-    else if (m.type === "completions") {
-      pythonCompletions.get(m.id)?.(m.options);
-      pythonCompletions.delete(m.id);
+    else if (m.type === "answer") {
+      pythonRequests.get(m.id)?.(m.value);
+      pythonRequests.delete(m.id);
     } else if (m.id !== current) {
       // From a run that was stopped.
     } else if (m.type === "output") {
@@ -1010,16 +1024,22 @@ async function setAI(on, { ask = true } = {}) {
     state("loading", "loading…");
     model = await lm.loadModel((done, total) => state("loading", `${mb(done)} / ${mb(total)} MB`));
     if (!$("ai").checked) return model.unload(); // turned off meanwhile
-    const suggest = createSuggester({
+    const rejects = {
+      rust: async (source, line) => errorOnLine(await check(source), active, line),
+      python: pythonRejects,
+    };
+    const suggesters = new Map(LANGUAGES.map((l) => [l, createSuggester({
       complete: model.complete,
+      ai: l.ai,
       // Right after a dot, only the members there; with type-aware completion on.
-      members: (doc, from, to) => ($("types").checked ? typeMembers(doc, from, to) : null),
-      check,
+      members: (doc, from, to) => ($("types").checked ? members(doc, from, to) : null),
+      rejects: rejects[l.id],
       main: () => active,
-      others: () => [...files].filter(([name]) => name !== active).map(([name, content]) => ({ name, content })),
-    });
-    // Rust only, for now: the model's prompt and the check are Rust's.
-    editor.setSuggest((doc, pos, signal) => (active.endsWith(".rs") ? suggest(doc, pos, signal) : ""));
+      // The other files in the same language.
+      others: () => [...files].filter(([name]) => name !== active && languageOf(name) === l)
+        .map(([name, content]) => ({ name, content })),
+    })]));
+    editor.setSuggest((doc, pos, signal) => suggesters.get(languageOf(active))?.(doc, pos, signal) ?? "");
     state("on");
   } catch (e) {
     $("ai").checked = false;

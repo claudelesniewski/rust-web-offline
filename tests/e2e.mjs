@@ -571,6 +571,15 @@ try {
     await setCode("oops.py", "import calc\n\nprint(calc.half(4))\n");
   });
 
+  await step("AI suggestions in Python too", async () => {
+    // The test model writes stories, which only a comment accepts.
+    await setCode("oops.py", "import calc\n\n");
+    await page.keyboard.type("# Once upon a");
+    await page.locator(".cm-ghost").waitFor({ timeout: 30_000 });
+    assert.ok((await page.locator(".cm-ghost").innerText()).trim());
+    await setCode("oops.py", "import calc\n\nprint(calc.half(4))\n");
+  });
+
   await step("format Python with Ruff, installed when first needed", async () => {
     await setCode("calc.py", "def half( x ):\n  return {'x':x/2}\n");
     page.once("dialog", (d) => d.accept()); // "Ruff isn't installed. Download it?"

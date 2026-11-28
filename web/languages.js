@@ -20,13 +20,18 @@ export function cargoToml(project) {
  *  - `findLocations(text)`: the places in the project that the output of a
  *    compile or run names: [{ index, length, file, line, col }].
  *  - `findDefinition(files, current, word, pos)`: where `word` (at offset
- *    `pos` of file `current`) is defined: { file, line, col }, or null. */
+ *    `pos` of file `current`) is defined: { file, line, col }, or null.
+ *  - `ai`: how AI suggestions (web/suggest.js) show the model the project,
+ *    as a repository named `repo`, a file being at `path(name)`; and how a
+ *    `comment`, and strings (in `quotes`), start. */
 export const LANGUAGES = [
   { id: "rust", name: "Rust", ext: ".rs", pack: "rust",
     layout: { src: "src/", manifest: "Cargo.toml", makeManifest: cargoToml },
-    findLocations: rustErrors.findLocations, findDefinition: rustDefinitions.findDefinition },
+    findLocations: rustErrors.findLocations, findDefinition: rustDefinitions.findDefinition,
+    ai: { repo: "rust-examples", path: (name) => `src/${name}`, comment: "//", quotes: '"' } },
   { id: "python", name: "Python", ext: ".py", pack: "python",
-    findLocations: pythonErrors.findLocations, findDefinition: pythonDefinitions.findDefinition },
+    findLocations: pythonErrors.findLocations, findDefinition: pythonDefinitions.findDefinition,
+    ai: { repo: "python-examples", path: (name) => name, comment: "#", quotes: "\"'" } },
 ];
 
 /** The places in the project that `text` names, as any language does. */

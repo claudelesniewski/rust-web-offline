@@ -148,6 +148,32 @@ service worker (sw.js): precache the site, serve it and the installed
   `Circle(`) where it guessed (`new()`) without, though its arguments don't
   always compile yet.
 
+  In Python, the same: the prompt is a repository named `python-examples`
+  (with its files at the top, as `main.py`), after a dot jedi finds the
+  members (a list it can't make counts as not known, as jedi often can't
+  tell), and the check is Python's own, in the Python worker: a syntax
+  error, or a name bound nowhere in the file (nor a builtin), on the line
+  (one that opens a block gets a `pass` after it, to be checked alone).
+
+  `bench/ai.mjs` measures all this, with the real model in headless
+  Chromium, on 29 lines of each language (`bench/rust.json`,
+  `bench/python.json`): 18 to tune on, 8 unlike those (held out, to tell
+  whether a change only fits the 18), and 3 that need another file of the
+  project. Right means matching the case's pattern and passing the check:
+
+  | | Rust | Python | time (Rust, Python) |
+  | --- | --- | --- | --- |
+  | model alone | 9 (2 held out, 1 multi-file) | 21 (6, 2) | 0.2 s, 0.15 s |
+  | held to the members after a dot | 10 (3, 1) | 22 (6, 3) | 0.3 s, 0.2 s |
+  | checked | 9 (2, 1) | 21 (6, 2) | 0.3 s, 0.2 s |
+  | both (as the app) | 10 (3, 1) | 22 (6, 3) | 0.5 s, 0.2 s |
+
+  The check's gain is mostly in what it hides: of Python's 29, the model
+  alone shows 8 wrong lines, and the app 6 (Rust: 20, and 8). Python's
+  repository named `python`, `TheAlgorithms/Python` or `python-exercises`
+  did no better; up to 48 tokens a suggestion, rather than 32, got one more
+  Python line right that was cut before its end.
+
   Qwen2.5-Coder-0.5B, a much better code model, is
   430 MB at 4 bits, too much for small Chromebooks. Chat-tuned variants
   (SmolLM2-135M-Instruct, kimi-coder-135m) complete code no better (5 of 12

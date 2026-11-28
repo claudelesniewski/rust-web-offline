@@ -36,7 +36,7 @@ library run as WebAssembly on your machine; nothing is sent to a server.
   imports.
 - Optional **AI** suggestions (in **Options**): a small language model (SmolLM2-135M, a 145 MB
   download when turned on) runs on the device and suggests the rest of the
-  line, shown greyed out; Tab takes it (Shift-Tab when a completion list is
+  line, in Rust or Python, shown greyed out; Tab takes it (Shift-Tab when a completion list is
   open too). Small means often wrong.
 - Offline documentation (**Docs** menu): the Rust Book, the Reference, and
   the std, core and alloc API docs with search; and Python's tutorial,
@@ -52,6 +52,7 @@ Setup and deployment: [docs/DEPLOY.md](docs/DEPLOY.md). How it works and why:
 scripts/build.sh          # downloads the toolchain and docs, builds build/site
 node tests/serve.mjs      # serves it at http://127.0.0.1:8000/rust-web-offline/
 scripts/ci.sh             # unit tests + build + end-to-end test in headless Chromium
+node bench/ai.mjs         # how often AI suggestions are right, in Rust and Python
 ```
 
 ## Credits and licences

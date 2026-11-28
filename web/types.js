@@ -10,14 +10,30 @@
 const PROBE = "__rwo_probe";
 
 /** The source with the word at [from, to) replaced by the probe, ending
- *  the statement if nothing follows on its line, so that it parses: with
+ *  the statement if nothing follows on its line, so that it parses: closing
+ *  the brackets left open on the line (as in `println!("{}", x.`), then with
  *  ` {}` after `if`, `while`, `for` or `match`, else with `;`. */
 export function probeSource(doc, from, to) {
   const eol = doc.indexOf("\n", to) === -1 ? doc.length : doc.indexOf("\n", to);
   const rest = doc.slice(to, eol);
   const line = doc.slice(doc.lastIndexOf("\n", from - 1) + 1, from);
   const end = /^\s*(?:\}\s*else\s+)?(?:if|while|for|match)\b/.test(line) ? " {}" : ";";
-  return doc.slice(0, from) + PROBE + (rest.trim() ? rest : end) + doc.slice(eol);
+  return doc.slice(0, from) + PROBE + (rest.trim() ? rest : closers(line) + end) + doc.slice(eol);
+}
+
+/** The brackets that close those `line` leaves open, outside strings. */
+function closers(line) {
+  const open = [];
+  const pairs = { "(": ")", "[": "]", "{": "}" };
+  for (let i = 0, quoted = false; i < line.length; i++) {
+    const c = line[i];
+    if (c === "\\") i++;
+    else if (c === '"') quoted = !quoted;
+    else if (quoted) continue;
+    else if (pairs[c]) open.push(pairs[c]);
+    else if (c === open.at(-1)) open.pop();
+  }
+  return open.reverse().join("");
 }
 
 /** From rustc's output for a probe: { type, fields }, or null. */
@@ -85,9 +101,10 @@ export function userMethods(sources, name) {
 
 /** Whether rustc's output has an error (not a warning) on line `line`
  *  (from 1) of `file`. */
-export function errorOnLine(output, file, line) {
+export function errorOnLine(output, file, line, { coded = false } = {}) {
   const at = `src/${file}:${line}:`;
-  return [...output.matchAll(/^error\b.*\n\s*--> (\S+)/gm)].some((m) => m[1].startsWith(at));
+  const re = coded ? /^error\[E\d+\].*\n\s*--> (\S+)/gm : /^error\b.*\n\s*--> (\S+)/gm;
+  return [...output.matchAll(re)].some((m) => m[1].startsWith(at));
 }
 
 /** Completion options for the word at [from, to) after a dot in file
@@ -121,7 +138,9 @@ export function createTypeCompletion({ check, fetchText }) {
         result: (async () => {
           const output = await check(source);
           const found = parseProbe(output);
-          if (!found) return errorOnLine(output, main, doc.slice(0, from).split("\n").length) ? [] : null;
+          // Nothing there: rustc can't find the name (a coded error, as
+          // E0425), not that the line didn't parse.
+          if (!found) return errorOnLine(output, main, doc.slice(0, from).split("\n").length, { coded: true }) ? [] : null;
           const name = typeName(found.type);
           const methods = name ? await methodsOf(name, sources) : [];
           return [

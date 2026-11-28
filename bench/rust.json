@@ -161,5 +161,179 @@
     "content": "pub struct Stack {\n    items: Vec<i32>,\n}\n\nimpl Stack {\n    pub fn new() -> Self {\n        Stack { items: Vec::new() }\n    }\n    pub fn push(&mut self, x: i32) {\n        self.items.push(x);\n    }\n    pub fn peek(&self) -> Option<&i32> {\n        self.items.last()\n    }\n}\n"
    }
   ]
+ },
+ {
+  "group": "held-out",
+  "code": "use std::fmt;\n\nstruct Point {\n    x: i32,\n    y: i32,\n}\n\nimpl fmt::Display for Point {\n    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {\n        ",
+  "expect": "^write!\\(f, "
+ },
+ {
+  "group": "held-out",
+  "code": "use std::fs;\n\nfn read_config(path: &str) -> std::io::Result<String> {\n    let text = fs::",
+  "expect": "^read_to_string\\(path\\)\\?"
+ },
+ {
+  "group": "held-out",
+  "code": "fn main() {\n    let v = vec![1, 2, 3, 4];\n    let evens: Vec<i32> = v.into_iter().",
+  "expect": "^filter\\(\\|"
+ },
+ {
+  "group": "held-out",
+  "code": "use std::collections::HashSet;\n\nfn main() {\n    let mut seen = HashSet::new();\n    for x in [1, 2, 2, 3] {\n        if !seen.",
+  "expect": "^(insert\\(x\\)|contains\\(&x\\))"
+ },
+ {
+  "group": "held-out",
+  "code": "fn main() {\n    let x: Option<i32> = Some(5);\n    match x {\n        Some(n) => println!(\"{}\", n),\n        ",
+  "expect": "^None => "
+ },
+ {
+  "group": "held-out",
+  "code": "struct Stack {\n    items: Vec<i32>,\n}\n\nimpl Stack {\n    fn push(&mut self, x: i32) {\n        self.",
+  "expect": "^items\\.push\\(x\\)"
+ },
+ {
+  "group": "held-out",
+  "code": "fn main() {\n    let mut s = String::from(\"hello\");\n    s.",
+  "expect": "^push(_str)?\\("
+ },
+ {
+  "group": "held-out",
+  "code": "fn parse(s: &str) -> Result<i32, std::num::ParseIntError> {\n    let n: i32 = s.trim().",
+  "expect": "^parse\\(\\)"
+ },
+ {
+  "group": "held-out",
+  "code": "fn main() {\n    let v = vec![3, 7, 2];\n    let biggest = v.iter().",
+  "expect": "^max\\(\\)"
+ },
+ {
+  "group": "held-out",
+  "code": "fn main() {\n    let v = vec![1, 2, 3];\n    if let Some(first) = v.",
+  "expect": "^first\\(\\)"
+ },
+ {
+  "group": "held-out",
+  "code": "fn main() {\n    for i in (0..10).",
+  "expect": "^(step_by|rev)\\("
+ },
+ {
+  "group": "held-out",
+  "code": "fn factorial(n: u64) -> u64 {\n    if n == 0 {\n        return 1;\n    }\n    ",
+  "expect": "^n \\* factorial\\(n - 1\\)"
+ },
+ {
+  "group": "held-out",
+  "code": "struct Config {\n    verbose: bool,\n    level: u8,\n}\n\nfn main() {\n    let c = Config { verbose: true, ",
+  "expect": "^level: \\d+ \\}"
+ },
+ {
+  "group": "held-out",
+  "code": "fn main() {\n    let name = \"Ada\";\n    let greeting = format!(",
+  "expect": "^\\\"[^\\\"]*\\{(name)?\\}[^\\\"]*\\\"(, name)?\\)"
+ },
+ {
+  "group": "held-out",
+  "code": "enum Direction {\n    North,\n    South,\n}\n\nimpl Direction {\n    fn opposite(&self) -> Direction {\n        match self {\n            Direction::North => ",
+  "expect": "^Direction::South"
+ },
+ {
+  "group": "held-out",
+  "code": "fn main() {\n    let primes = vec![2, 3, 5, ",
+  "expect": "^7"
+ },
+ {
+  "group": "held-out",
+  "code": "struct Person {\n    name: String,\n    age: u32,\n}\n\nfn sort(people: &mut Vec<Person>) {\n    people.",
+  "expect": "^sort_by(_key)?\\(\\|"
+ },
+ {
+  "group": "held-out",
+  "code": "fn greet(name: &str) -> String {\n    ",
+  "expect": "^(format!\\(|\\\"[^\\\"]*\\\"\\.to_(owned|string)\\(\\) \\+ name)"
+ },
+ {
+  "group": "held-out",
+  "code": "fn reverse(s: &str) -> String {\n    s.chars().",
+  "expect": "^rev\\(\\)\\.collect"
+ },
+ {
+  "group": "held-out",
+  "code": "fn main() {\n    let text = \"hello world\";\n    if text.",
+  "expect": "^(contains|starts_with)\\("
+ },
+ {
+  "group": "held-out",
+  "code": "fn main() {\n    let mut stack = vec![1, 2, 3];\n    while let Some(top) = stack.",
+  "expect": "^pop\\(\\)"
+ },
+ {
+  "group": "held-out",
+  "code": "trait Shape {\n    fn area(&self) -> f64;\n}\n\nstruct Square(f64);\n\nimpl Shape for Square {\n    fn area(&self) -> f64 {\n        ",
+  "expect": "^self\\.0 \\* self\\.0"
+ },
+ {
+  "group": "held-out",
+  "code": "use std::collections::VecDeque;\n\nfn main() {\n    let mut queue = VecDeque::new();\n    queue.",
+  "expect": "^push_back\\("
+ },
+ {
+  "group": "held-out",
+  "code": "fn main() {\n    let args: Vec<String> = std::env::args().collect();\n    let name = args.get(1).",
+  "expect": "^((cloned\\(\\)\\.)?(map\\(.*\\)\\.)?unwrap_or|map_or)"
+ },
+ {
+  "group": "held-out",
+  "code": "fn min_max(v: &[i32]) -> (i32, i32) {\n    let min = *v.iter().min().unwrap();\n    let max = *v.iter().max().unwrap();\n    ",
+  "expect": "^\\(min, max\\)"
+ },
+ {
+  "group": "held-out",
+  "code": "fn add(a: i32, b: i32) -> i32 {\n    a + b\n}\n\n#[cfg(test)]\nmod tests {\n    use super::*;\n\n    #[test]\n    fn adds() {\n        assert_eq!(",
+  "expect": "^add\\(-?\\d+, -?\\d+\\), -?\\d+\\)"
+ },
+ {
+  "group": "multi-file",
+  "code": "mod math;\n\nfn main() {\n    let s = math::",
+  "expect": "^square\\(",
+  "others": [
+   {
+    "name": "math.rs",
+    "content": "pub fn square(x: i32) -> i32 {\n    x * x\n}\n"
+   }
+  ]
+ },
+ {
+  "group": "multi-file",
+  "code": "mod config;\nuse config::Config;\n\nfn main() {\n    let c = Config::",
+  "expect": "^load\\(\\)",
+  "others": [
+   {
+    "name": "config.rs",
+    "content": "pub struct Config {\n    pub verbose: bool,\n}\n\nimpl Config {\n    pub fn load() -> Config {\n        Config { verbose: false }\n    }\n}\n"
+   }
+  ]
+ },
+ {
+  "group": "multi-file",
+  "code": "mod shapes;\nuse shapes::Rect;\n\nfn main() {\n    let r = Rect::new(2.0, 3.0);\n    println!(\"{}\", r.",
+  "expect": "^area\\(\\)\\)",
+  "others": [
+   {
+    "name": "shapes.rs",
+    "content": "pub struct Rect {\n    width: f64,\n    height: f64,\n}\n\nimpl Rect {\n    pub fn new(width: f64, height: f64) -> Self {\n        Rect { width, height }\n    }\n    pub fn area(&self) -> f64 {\n        self.width * self.height\n    }\n}\n"
+   }
+  ]
+ },
+ {
+  "group": "multi-file",
+  "code": "mod util;\n\nfn main() {\n    let words = vec![\"a\", \"b\"];\n    let joined = util::",
+  "expect": "^join\\(&words, ",
+  "others": [
+   {
+    "name": "util.rs",
+    "content": "pub fn join(words: &[&str], sep: &str) -> String {\n    words.join(sep)\n}\n"
+   }
+  ]
  }
 ]

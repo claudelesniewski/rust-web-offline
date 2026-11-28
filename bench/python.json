@@ -161,5 +161,179 @@
     "content": "class Stack:\n    def __init__(self):\n        self.items = []\n\n    def push(self, x):\n        self.items.append(x)\n\n    def pop(self):\n        return self.items.pop()\n"
    }
   ]
+ },
+ {
+  "group": "held-out",
+  "code": "from dataclasses import dataclass\n\n\n@dataclass\nclass Point:\n    x: float\n    ",
+  "expect": "^y: float"
+ },
+ {
+  "group": "held-out",
+  "code": "def read_lines(path):\n    with open(path) as f:\n        return ",
+  "expect": "^(f\\.read\\(\\)\\.splitlines\\(\\)|f\\.readlines\\(\\)|\\[line\\.\\w+\\(\\) for line in f\\]|list\\(f\\))"
+ },
+ {
+  "group": "held-out",
+  "code": "def parse(s):\n    try:\n        return int(s)\n    ",
+  "expect": "^except ValueError"
+ },
+ {
+  "group": "held-out",
+  "code": "words = [\"a\", \"bb\", \"ccc\"]\nlengths = {",
+  "expect": "^(\\w+): len\\(\\1\\) for \\1 in words\\}"
+ },
+ {
+  "group": "held-out",
+  "code": "people = [(\"Ada\", 36), (\"Alan\", 41)]\nby_age = sorted(people, key=",
+  "expect": "^lambda (\\w+): \\1\\[1\\]\\)"
+ },
+ {
+  "group": "held-out",
+  "code": "items = [1, 2, 2, 3]\nunique = ",
+  "expect": "^set\\(items\\)"
+ },
+ {
+  "group": "held-out",
+  "code": "def greet(name):\n    return ",
+  "expect": "^(f[\\\"']\\w+,? \\{name\\}|[\\\"']\\w+,? [\\\"'] \\+ name)"
+ },
+ {
+  "group": "held-out",
+  "code": "words = [\"a\", \"b\"]\nline = ",
+  "expect": "^[\\\"'][^\\\"']*[\\\"']\\.join\\(words\\)"
+ },
+ {
+  "group": "held-out",
+  "code": "def squares(n):\n    for i in range(n):\n        ",
+  "expect": "^yield i ?(\\*\\* ?2|\\* ?i)$"
+ },
+ {
+  "group": "held-out",
+  "code": "class Animal:\n    def speak(self):\n        return \"...\"\n\n\nclass Dog(Animal):\n    def speak(self):\n        return ",
+  "expect": "^[\\\"'](Woof|Bark)"
+ },
+ {
+  "group": "held-out",
+  "code": "class Base:\n    def __init__(self, name):\n        self.name = name\n\n\nclass Child(Base):\n    def __init__(self, name, age):\n        ",
+  "expect": "^super\\(\\)\\.__init__\\(name\\)"
+ },
+ {
+  "group": "held-out",
+  "code": "s = \"Hello\"\nlower = s.",
+  "expect": "^lower\\(\\)"
+ },
+ {
+  "group": "held-out",
+  "code": "url = \"https://example.com\"\nif url.",
+  "expect": "^startswith\\("
+ },
+ {
+  "group": "held-out",
+  "code": "names = [\"a\", \"b\"]\nages = [1, 2]\nfor name, age in ",
+  "expect": "^zip\\(names, ages\\):"
+ },
+ {
+  "group": "held-out",
+  "code": "from collections import Counter\n\nwords = [\"a\", \"b\", \"a\"]\ncounts = ",
+  "expect": "^Counter\\(words\\)"
+ },
+ {
+  "group": "held-out",
+  "code": "words = [\"a\", \"bbb\"]\nlongest = max(words, key=",
+  "expect": "^len\\)"
+ },
+ {
+  "group": "held-out",
+  "code": "s = \"abc\"\nbackwards = s[",
+  "expect": "^::-1\\]"
+ },
+ {
+  "group": "held-out",
+  "code": "def main():\n    print(\"hi\")\n\n\nif __name__ == ",
+  "expect": "^[\\\"']__main__[\\\"']:"
+ },
+ {
+  "group": "held-out",
+  "code": "def evens(nums):\n    result = []\n    for n in nums:\n        if n % 2 == 0:\n            ",
+  "expect": "^result\\.append\\(n\\)"
+ },
+ {
+  "group": "held-out",
+  "code": "def average(nums):\n    return ",
+  "expect": "^sum\\(nums\\) ?/ ?len\\(nums\\)"
+ },
+ {
+  "group": "held-out",
+  "code": "def withdraw(balance, amount):\n    if amount > balance:\n        ",
+  "expect": "^raise ValueError\\("
+ },
+ {
+  "group": "held-out",
+  "code": "import json\n\ndata = json.",
+  "expect": "^(loads|load|dumps)\\("
+ },
+ {
+  "group": "held-out",
+  "code": "import os\n\npath = os.path.",
+  "expect": "^join\\("
+ },
+ {
+  "group": "held-out",
+  "code": "import random\n\nroll = random.",
+  "expect": "^randint\\(1, ?6\\)"
+ },
+ {
+  "group": "held-out",
+  "code": "class Circle:\n    def __init__(self, r):\n        self.r = r\n\n    @property\n    def area(self):\n        return ",
+  "expect": "^(3\\.14\\d*|math\\.pi) ?\\* ?self\\.r ?(\\*\\* ?2|\\* ?self\\.r)"
+ },
+ {
+  "group": "held-out",
+  "code": "def describe(x):\n    if isinstance(x, ",
+  "expect": "^(int|str|float|list|dict|\\()"
+ },
+ {
+  "group": "multi-file",
+  "code": "from mathutils import square\n\nprint(",
+  "expect": "^square\\(-?\\d+\\)\\)",
+  "others": [
+   {
+    "name": "mathutils.py",
+    "content": "def square(x):\n    return x * x\n"
+   }
+  ]
+ },
+ {
+  "group": "multi-file",
+  "code": "import config\n\nsettings = config.",
+  "expect": "^load\\(\\)",
+  "others": [
+   {
+    "name": "config.py",
+    "content": "def load():\n    return {\"verbose\": False}\n"
+   }
+  ]
+ },
+ {
+  "group": "multi-file",
+  "code": "from shapes import Rect\n\nr = Rect(2, 3)\nprint(r.",
+  "expect": "^area\\(\\)\\)",
+  "others": [
+   {
+    "name": "shapes.py",
+    "content": "class Rect:\n    def __init__(self, width, height):\n        self.width = width\n        self.height = height\n\n    def area(self):\n        return self.width * self.height\n"
+   }
+  ]
+ },
+ {
+  "group": "multi-file",
+  "code": "import util\n\nwords = [\"a\", \"b\"]\njoined = util.",
+  "expect": "^join_words\\(words",
+  "others": [
+   {
+    "name": "util.py",
+    "content": "def join_words(words, sep=\" \"):\n    return sep.join(words)\n"
+   }
+  ]
  }
 ]

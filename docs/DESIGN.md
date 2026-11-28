@@ -110,9 +110,11 @@ service worker (sw.js): precache the site, serve it and the installed
   types, from your `impl` blocks. If the type can't be found (e.g. the code
   doesn't parse), the plain list is offered. With AI turned on: `web/lm.js` downloads
   [wllama](https://github.com/ngxson/wllama) (llama.cpp in wasm, 11 MB, built
-  into the site but not precached) and SmolLM2-135M at 8 bits (145 MB, from
-  Hugging Face at a pinned revision, checked by SHA-256) into a cache of
-  their own, which the service worker keeps across versions. After a pause
+  into the site but not precached) into a cache of its own, which the
+  service worker keeps across versions; the model is a pack (packs.json,
+  `model`: its prompt format, and whether it fills in the middle), one of
+  five measured below, from Hugging Face at a pinned revision, checked by
+  SHA-256, downloaded when first chosen. After a pause
   in typing at the end of a line, `vendor/ghost.js` asks for the rest of it
   (`web/suggest.js`). The prompt lays out the project as files of a
   repository, in the format of the model's code training data (StarCoder2's:
@@ -190,15 +192,15 @@ service worker (sw.js): precache the site, serve it and the installed
   did no better; up to 48 tokens a suggestion, rather than 32, got one more
   Python line right that was cut before its end.
 
-  Larger models, on the same benchmark (`MODEL=<file.gguf> FORMAT=<format>
-  node bench/ai.mjs`), with the toolchain's help as above; FIM is filling in
+  The models to choose from, on the same benchmark (`MODEL=<pack id> node
+  bench/ai.mjs`), with the toolchain's help as above; FIM is filling in
   the middle, which Qwen2.5-Coder was trained for (`<|fim_prefix|>` …), and
   SmolLM2 wasn't:
 
   | | download | Rust | Python | time (Rust, Python) |
   | --- | --- | --- | --- | --- |
-  | SmolLM2-135M, 8 bits (now) | 145 MB | 24 (11 held out, 5 multi-file) | 42 (22, 7) | 0.6 s, 0.25 s |
-  | SmolLM2-360M, 8 bits | 386 MB | 45 (27, 6) | 50 (28, 7) | 1.15 s, 0.5 s |
+  | SmolLM2-135M, 8 bits | 145 MB | 24 (11 held out, 5 multi-file) | 42 (22, 7) | 0.6 s, 0.25 s |
+  | SmolLM2-360M, 8 bits | 386 MB | 48 (28, 7) | 49 (27, 7) | 1.25 s, 0.5 s |
   | Qwen2.5-Coder-0.5B, 4 bits (Q4_K_M), and FIM | 398 MB | 51 (29, 7) | 49 (29, 7) | 1.15 s, 0.65 s |
   | Qwen2.5-Coder-0.5B, 8 bits, and FIM | 531 MB | 52 (30, 7) | 51 (30, 7) | 1.0 s, 0.55 s |
 

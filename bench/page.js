@@ -68,12 +68,14 @@ const documentOf = (language, code) => {
 };
 
 /** Each configuration's results on each case of `suites` ({ language id:
- *  cases }): { config: { id: [{ text, ok, checked, ms }] } }. */
-export async function run(suites, configs) {
+ *  cases }), with the model at model.gguf (laid out as `format`, `fim` if it
+ *  sees the code after the cursor): { config: { id: [{ text, ok, checked,
+ *  ms }] } }. */
+export async function run(suites, configs, { format, fim = false }) {
   const all = await packs.available();
   if (suites.python) await packs.install(all.python, "python");
   if (suites.rust) await rustReady;
-  const model = await loadModel(() => {});
+  const model = await loadModel(await (await fetch("model.gguf")).blob(), format);
   const results = {};
   for (const [name, config] of Object.entries(configs)) {
     results[name] = {};
@@ -97,7 +99,7 @@ export async function run(suites, configs) {
           others: () => others,
           fixes: config.fixes,
           retries: config.retries,
-          fim: config.fim,
+          fim: config.fim ?? fim,
         });
         const doc = documentOf(language, code);
         const t0 = performance.now();

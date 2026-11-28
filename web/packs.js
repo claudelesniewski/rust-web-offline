@@ -13,8 +13,10 @@ const PACKAGE = "X-Package";
 const hex = (buf) => [...new Uint8Array(buf)].map((b) => b.toString(16).padStart(2, "0")).join("");
 
 /** The packs that can be installed: { id: { title, about, base, dir, files,
- *  lock?, packages?, default? } }. Default packs are installed unless
- *  removed; `packages`, from the lock, are installed with the pack. */
+ *  lock?, packages?, default?, model? } }. Default packs are installed
+ *  unless removed; `packages`, from the lock, are installed with the pack.
+ *  A pack with `model` ({ format, fim? }, as web/lm.js reads them) is a
+ *  model for AI suggestions, its one file the model. */
 export async function available() {
   return (await fetch("packs.json")).json();
 }
@@ -119,6 +121,13 @@ export async function isInstalled(pack) {
     if (!(await has(cache, pack, { name: p.file_name, sha256: p.sha256 }))) return false;
   }
   return true;
+}
+
+/** File `name` of installed `pack`, as a Blob. */
+export async function file(pack, name) {
+  const res = await (await caches.open(CACHE)).match(localPath(pack, name));
+  if (!res) throw new Error(`${name} isn't installed`);
+  return res.blob();
 }
 
 /** The pack's lock file's packages: { name: { file_name, sha256, depends } }. */

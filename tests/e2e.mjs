@@ -17,15 +17,14 @@ cpSync("build/site", site, { recursive: true });
 // stories, not Rust, but tests all the same.
 const model = readFileSync("build/cache/toolchain/test/stories260K.gguf");
 writeFileSync(join(site, "test-model.gguf"), model);
-const lmIndex = JSON.parse(readFileSync(join(site, "lm/index.json"), "utf8"));
-lmIndex.model = { url: "test-model.gguf", sha256: createHash("sha256").update(model).digest("hex"), size: model.length };
-writeFileSync(join(site, "lm/index.json"), JSON.stringify(lmIndex));
+const testModel = { name: "test-model.gguf", sha256: createHash("sha256").update(model).digest("hex"), size: model.length };
 // The Python and Ruff packs come from the files fetch-toolchain.sh pinned,
 // not the CDN.
 const packsJson = JSON.parse(readFileSync(join(site, "packs.json"), "utf8"));
 for (const id of ["pyodide", "ruff"]) cpSync(`build/cache/toolchain/test/${id}`, join(site, `test-${id}`), { recursive: true });
 packsJson.python.base = "test-pyodide/";
 packsJson.ruff.base = "test-ruff/";
+packsJson["model-smollm2-135m"] = { ...packsJson["model-smollm2-135m"], base: "", files: [testModel] };
 writeFileSync(join(site, "packs.json"), JSON.stringify(packsJson));
 const server = await serve(site);
 const requests = [];
@@ -269,9 +268,9 @@ try {
   });
 
   await step("AI suggestions", async () => {
-    page.once("dialog", (d) => d.accept());
+    page.once("dialog", (d) => d.accept()); // "AI model: SmolLM2-135M isn't installed. Download it?"
     await page.locator("#options summary").click();
-    await page.locator("#ai").check();
+    await page.locator("#ai").selectOption("model-smollm2-135m");
     await page.locator("#options summary").click();
     await aiReady(page);
     await setCode("main.rs", "fn main() {}\n");

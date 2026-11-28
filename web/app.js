@@ -845,6 +845,7 @@ async function installPack(id, pack, onProgress = setStatus) {
 /** Remove pack `id`, stopping what uses it. */
 async function removePack(id) {
   await setWanted(id, false);
+  if ($("ai").value === id) await setAI(null);
   if (id === "python") {
     if (runningPython) stop();
     python?.terminate();
@@ -999,32 +1000,41 @@ $("vim").onchange = (e) => setVim(e.target.checked);
 // ---- AI suggestions --------------------------------------------------------
 
 let model = null;
+/** Counts the calls to setAI, so that a model loaded too late is dropped. */
+let aiCalls = 0;
 
-/** Turn AI suggestions on or off; the toggle's data-state follows: off,
- *  loading, on or failed. */
-async function setAI(on, { ask = true } = {}) {
+/** The models AI suggestions can use: packs with `model`, [[id, pack]]. */
+const models = async () => Object.entries(await packs.available()).filter(([, pack]) => pack.model);
+
+/** List the models in the AI suggestions menu. */
+async function listModels() {
+  for (const [id, pack] of await models()) {
+    $("ai").add(new Option(`${pack.title.replace(/^AI model: /, "")} (${mb(packs.size(pack))} MB)`, id));
+  }
+}
+
+/** Turn AI suggestions off (null), or on with model `id` (a pack's),
+ *  installing it first if need be: asking, if `ask`, else not at all. The
+ *  toggle's data-state follows: off, loading, on or failed. */
+async function setAI(id, { ask = true } = {}) {
+  const call = ++aiCalls;
   const state = (s, text = "") => {
     $("ai-toggle").dataset.state = s;
     $("ai-status").textContent = text;
   };
-  $("ai").checked = on;
-  store.setSetting("ai", on);
-  if (!on) {
-    editor.setSuggest(null);
-    model?.unload();
-    model = null;
-    state("off");
-    return;
-  }
-  if (ask && !(await lm.isDownloaded()) && !confirm(
-    "AI suggestions download a 145 MB language model (SmolLM2-135M) that then runs on this device, offline. " +
-    "It is small, so its suggestions are often wrong. Download it?")) {
-    return setAI(false);
-  }
+  $("ai").value = id ?? "";
+  store.setSetting("ai", id);
+  editor.setSuggest(null);
+  model?.unload();
+  model = null;
+  const pack = id && (await packs.available())[id];
+  if (!pack) return state("off");
   try {
     state("loading", "loading…");
-    model = await lm.loadModel((done, total) => state("loading", `${mb(done)} / ${mb(total)} MB`));
-    if (!$("ai").checked) return model.unload(); // turned off meanwhile
+    if (!(await packs.isInstalled(pack)) && !(ask && (await ensurePack(id)))) return setAI(null);
+    const loaded = await lm.loadModel(await packs.file(pack, pack.files[0].name), pack.model.format);
+    if (call !== aiCalls) return loaded.unload(); // changed meanwhile
+    model = loaded;
     const lineChecks = {
       rust: async (source, line) => fixOnLine(await check(source, true), active, line, source.split("\n")[line - 1]),
       python: pythonCheck,
@@ -1039,18 +1049,21 @@ async function setAI(on, { ask = true } = {}) {
       // The other files in the same language.
       others: () => [...files].filter(([name]) => name !== active && languageOf(name) === l)
         .map(([name, content]) => ({ name, content })),
+      // The code after the cursor too, for models trained so.
+      fim: pack.model.fim ?? false,
     })]));
     editor.setSuggest((doc, pos, signal) => suggesters.get(languageOf(active))?.(doc, pos, signal) ?? "");
     state("on");
   } catch (e) {
-    $("ai").checked = false;
-    store.setSetting("ai", false);
+    if (call !== aiCalls) return;
+    $("ai").value = "";
+    store.setSetting("ai", null);
     state("failed", "failed");
     $("ai-toggle").title = `AI suggestions failed to load: ${e.message}`;
   }
 }
 
-$("ai").onchange = (e) => setAI(e.target.checked);
+$("ai").onchange = (e) => setAI(e.target.value || null);
 
 // ---- Start -----------------------------------------------------------------
 
@@ -1064,7 +1077,11 @@ setupFind();
 loadProjects().catch((e) => setStatus(`Could not load your files: ${e}`));
 setupServiceWorker().catch((e) => showOffline("", `Offline: unavailable (${e.message})`));
 requestPersistence();
-store.getSetting("ai").then((on) => { if (on) setAI(true, { ask: false }); });
+// The setting was `true` when there was one model: it's SmolLM2-135M, which
+// moved to a pack, so it is downloaded again (asking).
+Promise.all([listModels(), store.getSetting("ai")]).then(([, id]) => {
+  if (id) setAI(id === true ? "model-smollm2-135m" : id, { ask: id === true });
+});
 store.getSetting("types").then((on) => setTypes(on ?? true));
 store.getSetting("vim").then((on) => { if (on) setVim(true); });
 initLayout($("main"), $("files-handle"), $("terminal-handle"), store);

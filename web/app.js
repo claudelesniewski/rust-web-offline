@@ -27,13 +27,21 @@ function showOffline(state, text) {
 }
 
 const mb = (bytes) => (bytes / 1e6).toFixed(0);
+/** Whether the site is saved for offline use; how many packs are being. */
+let siteReady = false;
+let packsInstalling = 0;
+
+function showOfflineReady() {
+  if (siteReady && !packsInstalling) showOffline("ready", "✓ Ready for offline use");
+}
 
 function onServiceWorkerMessage({ data: m }) {
   if (m.type === "offline-progress") {
     showOffline("pending", `Saving for offline: ${mb(m.done)} / ${mb(m.total)} MB`);
-    if (!crossOriginIsolated) setStatus("First visit: downloading the Rust toolchain…");
+    if (!crossOriginIsolated) setStatus("First visit: setting up…");
   } else if (m.type === "offline-ready") {
-    showOffline("ready", "✓ Ready for offline use");
+    siteReady = true;
+    showOfflineReady();
   }
 }
 
@@ -530,6 +538,8 @@ const terminal = new Terminal($("output"), $("stdin"), {
 });
 let compiler = null;
 let ready = false;
+/** Whether Rust is loading, or it isn't known yet if it's installed. */
+let loading = true;
 /** The id of the request in progress, or null. */
 let current = null;
 let nextId = 1;
@@ -537,17 +547,20 @@ let nextId = 1;
 let compilerOutput = "";
 
 function setBusy(busy) {
-  $("run").disabled = busy || !ready;
-  $("format").disabled = busy || !ready;
+  $("run").disabled = busy || loading;
+  $("format").disabled = busy || loading;
   $("stop").disabled = !busy;
 }
 
 function startCompiler() {
+  loading = true;
+  setBusy(current !== null);
   compiler = new Worker("compiler-worker.js", { type: "module" });
   compiler.onmessage = ({ data: m }) => {
     if (m.type === "status") setStatus(m.text);
     else if (m.type === "ready") {
       ready = true;
+      loading = false;
       setBusy(false);
     } else if (checks.has(m.id)) {
       // A type check for completion: its diagnostics, or nothing if it failed.
@@ -604,9 +617,16 @@ function finishRequest() {
   setBusy(false);
 }
 
+/** Rust's compiler, installing Rust first if need be (asking); whether it's
+ *  ready now. */
+function rustReady() {
+  if (!ready && !compiler) ensurePack("rust");
+  return ready;
+}
+
 function run() {
   if (active.endsWith(".py")) return runPython();
-  if (!ready || current !== null) return;
+  if (current !== null || !rustReady()) return;
   flushSaves();
   current = nextId++;
   setBusy(true);
@@ -620,7 +640,7 @@ function run() {
 
 function format() {
   if (!active.endsWith(".rs")) return setStatus("Format is for Rust files.");
-  if (!ready || current !== null) return;
+  if (current !== null || !rustReady()) return;
   current = nextId++;
   setBusy(true);
   terminal.clear();
@@ -688,24 +708,8 @@ function startPython() {
   };
 }
 
-/** Install the Python pack, asking first; whether it is installed. */
-async function ensurePython() {
-  const pack = (await packs.available()).python;
-  if (await packs.isInstalled(pack, "python")) return true;
-  const size = pack.files.reduce((n, f) => n + f.size, 0);
-  if (!confirm(`Python isn't installed yet. Download it (${mb(size)} MB)? It then works offline.`)) return false;
-  try {
-    await packs.install(pack, "python", (done, total) => setStatus(`Downloading Python: ${mb(done)} / ${mb(total)} MB`));
-    setStatus("Python is installed.");
-    return true;
-  } catch (e) {
-    setStatus(`Python could not be installed: ${e.message}`);
-    return false;
-  }
-}
-
 async function runPython() {
-  if (current !== null || !(await ensurePython())) return;
+  if (current !== null || !(await ensurePack("python"))) return;
   flushSaves();
   current = nextId++;
   runningPython = true;
@@ -718,6 +722,102 @@ async function runPython() {
   if (!python) startPython();
   const list = [...files].map(([name, content]) => ({ name, content }));
   python.postMessage({ type: "run", id: current, files: list, main: active });
+}
+
+// ---- Toolchains (packs) ------------------------------------------------------
+
+/** The packs to keep installed, and up to date: ids. */
+async function wantedPacks(all) {
+  return (await store.getSetting("packs")) ?? Object.keys(all).filter((id) => all[id].default);
+}
+
+async function setWanted(id, on) {
+  const wanted = new Set(await wantedPacks(await packs.available()));
+  if (on) wanted.add(id);
+  else wanted.delete(id);
+  await store.setSetting("packs", [...wanted]);
+}
+
+/** Install or update pack `id`, which is then wanted; `onProgress(text)`
+ *  follows it, as the offline indicator does. */
+async function installPack(id, pack, onProgress = setStatus) {
+  packsInstalling++;
+  if (id === "rust") {
+    loading = true;
+    setBusy(current !== null);
+  }
+  try {
+    await packs.install(pack, id, (done, total) => {
+      const text = `Saving ${pack.title} for offline: ${mb(done)} / ${mb(total)} MB`;
+      showOffline("pending", text);
+      onProgress(text);
+    });
+    await setWanted(id, true);
+    onProgress(`${pack.title} is installed.`);
+  } catch (e) {
+    if (id === "rust") {
+      loading = false;
+      setBusy(current !== null);
+    }
+    throw e;
+  } finally {
+    packsInstalling--;
+    showOfflineReady();
+  }
+  if (id === "rust" && !compiler) startCompiler();
+}
+
+/** Remove pack `id`, stopping what uses it. */
+async function removePack(id) {
+  await setWanted(id, false);
+  if (id === "python") {
+    if (runningPython) stop();
+    python?.terminate();
+    python = null;
+  } else if (id === "rust") {
+    compiler?.terminate();
+    compiler = null;
+    ready = loading = false;
+    for (const resolve of checks.values()) resolve("");
+    checks.clear();
+    if (current !== null && !runningPython) finishRequest();
+    setBusy(current !== null);
+  }
+  await packs.remove(id);
+}
+
+/** Install pack `id` if it isn't, asking first; whether it is. */
+async function ensurePack(id) {
+  const pack = (await packs.available())[id];
+  if (await packs.isInstalled(pack)) return true;
+  if (!confirm(`${pack.title} isn't installed. Download it (${mb(packs.size(pack))} MB)? It then works offline.`)) return false;
+  try {
+    await installPack(id, pack);
+    return true;
+  } catch (e) {
+    setStatus(`${pack.title} could not be installed: ${e.message}`);
+    return false;
+  }
+}
+
+/** At startup: install or update the wanted packs, then load Rust. */
+async function startPacks() {
+  const all = await packs.available();
+  for (const id of await wantedPacks(all)) {
+    if (!all[id] || (await packs.isInstalled(all[id]))) continue;
+    try {
+      await installPack(id, all[id]);
+    } catch (e) {
+      showOffline("", `Offline: ${all[id].title} could not be saved (${e.message})`);
+    }
+  }
+  if (await packs.isInstalled(all.rust)) {
+    if (!compiler) startCompiler();
+  } else {
+    loading = false;
+    setBusy(false);
+    setStatus("Ready.");
+  }
 }
 
 /** Fill the Toolchains dialog: each pack, and its packages once installed. */
@@ -742,28 +842,22 @@ async function renderToolchains() {
   };
   const sections = [];
   for (const [id, pack] of Object.entries(await packs.available())) {
-    const size = pack.files.reduce((n, f) => n + f.size, 0);
-    const installed = await packs.isInstalled(pack, id);
+    const installed = await packs.isInstalled(pack);
     const action = installed
-      ? make("button", { textContent: "Remove", onclick: () => busy(`Removing ${pack.title}…`, async () => {
-        python?.terminate();
-        python = null;
-        await packs.remove(id);
-      }) })
-      : make("button", { textContent: `Install (${mb(size)} MB)`, className: "primary",
-        onclick: () => busy(`Downloading ${pack.title}…`, () => packs.install(pack, id,
-          (done, total) => status(`Downloading ${pack.title}: ${mb(done)} / ${mb(total)} MB`))) });
+      ? make("button", { textContent: "Remove", onclick: () => busy(`Removing ${pack.title}…`, () => removePack(id)) })
+      : make("button", { textContent: `Install (${mb(packs.size(pack))} MB)`, className: "primary",
+        onclick: () => busy(`Downloading ${pack.title}…`, () => installPack(id, pack, status)) });
     const section = make("div", { className: "pack" }, [
       make("h4", {}, [`${pack.title}${installed ? " · installed" : ""}`, action]),
       make("p", { className: "hint", textContent: pack.about }),
     ]);
-    if (installed) {
-      const all = await packs.packages(id, pack);
-      const have = await packs.installedPackages(id, pack);
+    if (installed && pack.lock) {
+      const all = await packs.packages(pack);
+      const have = await packs.installedPackages(id);
       section.append(make("div", { className: "packages" }, have.length
         ? have.map((name) => make("span", {}, [name, " ", make("button", {
           className: "link", textContent: "✕", title: `Remove ${name}`,
-          onclick: () => busy(`Removing ${name}…`, () => packs.removePackage(id, pack, name)),
+          onclick: () => busy(`Removing ${name}…`, () => packs.removePackage(pack, name)),
         })]))
         : [make("span", { className: "hint", textContent: "No packages yet." })]));
       const input = make("input", { placeholder: "Add a package, as numpy", spellcheck: false });
@@ -890,5 +984,10 @@ store.getSetting("ai").then((on) => { if (on) setAI(true, { ask: false }); });
 store.getSetting("types").then((on) => setTypes(on ?? true));
 store.getSetting("vim").then((on) => { if (on) setVim(true); });
 initLayout($("main"), $("files-handle"), $("terminal-handle"), store);
-if (crossOriginIsolated) startCompiler();
-else setStatus("Setting up…");
+if (crossOriginIsolated) {
+  startPacks().catch((e) => {
+    setStatus(`Could not load the toolchains: ${e.message}`);
+    loading = false;
+    setBusy(false);
+  });
+} else setStatus("Setting up…");

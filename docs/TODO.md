@@ -2,7 +2,6 @@
 
 - Try some creative prompting, constraints, etc. (possibly in conjunction
   with the toolchain) to improve AI suggestions.
-- Make Rust an optional pack too, so a Python-only install skips its 74 MB.
 
 ## Python
 

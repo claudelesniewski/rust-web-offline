@@ -18,10 +18,12 @@ library run as WebAssembly on your machine; nothing is sent to a server.
   read and write** (github.com → Settings → Developer settings → Personal
   access tokens → Fine-grained tokens), kept in the browser only.
 - Standard library only (no crates.io).
-- Optional **Python** (Options → **Toolchains…**): Python 3.14 from Pyodide,
-  a 13 MB download when first installed or run, which then works offline as
-  well. `.py` files run with **Run**, `input()` included; add packages from
-  Pyodide's (numpy, pandas, …) in the same dialog, or remove them.
+- Toolchains to choose from (Options → **Toolchains…**), each downloaded
+  only when installed, then offline: Rust (74 MB with its docs, installed at
+  first, but it can be removed) and **Python** 3.14 from Pyodide (13 MB,
+  installed when you first run a `.py` file). `.py` files run with **Run**,
+  `input()` included; add packages from Pyodide's (numpy, pandas, …) in the
+  same dialog, or remove them.
 - Optional Vim key bindings (in **Options**), with `:w` to save.
 - Type-aware completion after `.` (on by default, in **Options**): the
   compiler finds the type, and the offline docs list its methods.

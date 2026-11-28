@@ -59,8 +59,9 @@ page (app.js)                   compiler worker                  thread workers
  editor, files, terminal  ───►  browser-kernel: in-memory FS,  ─► one per wasm thread,
  IndexedDB store          ◄───  WASI syscalls, processes          sharing memory
                                  rustc.wasm → wild.wasm → your program
-service worker (sw.js): precache everything, serve from cache (docs from
-                        compressed chunks), add COOP/COEP
+service worker (sw.js): precache the site, serve it and the installed
+                        toolchains from cache (docs from compressed
+                        chunks), add COOP/COEP
 ```
 
 - **Compiling.** `compiler-worker.js` loads rustc, the linker and the sysroot
@@ -69,15 +70,16 @@ service worker (sw.js): precache everything, serve from cache (docs from
   through the kernel; the resulting wasm runs as a new process, with stdin
   piped from the terminal's input line.
 - **Offline.** At build time `scripts/stamp-sw.mjs` writes into `sw.js` a
-  version (a hash of the site) and the list of every file with its size. The
-  worker downloads them one at a time into a cache named after the version,
-  reporting progress to the page, which shows "Ready for offline use" when
-  all are cached. Requests are answered cache-first. The page calls
+  version (a hash of the site) and the list of its files (but the
+  toolchains', see below) with their sizes. The worker downloads them one at
+  a time into a cache named after the version, reporting progress to the
+  page, which shows "Ready for offline use" when all are cached, and the
+  installed toolchains too. Requests are answered cache-first. The page calls
   `navigator.storage.persist()` so the browser doesn't evict the cache.
 - **Updates.** A new deploy changes `sw.js`, so the browser installs the new
-  version in the background. Toolchain files have content-hashed names, so
-  unchanged ones are copied from the old cache instead of downloaded. When
-  the new version takes over, the page offers "Update ready: reload".
+  version in the background. When the new version takes over, the page
+  offers "Update ready: reload"; the reloaded page then updates the
+  toolchains, downloading only their changed files.
 - **Docs.** The `rust-docs` component of the toolchain's nightly is 918 MB
   over 66,000 files. `scripts/pack-docs.mjs` keeps the Book, the Reference,
   the std, core and alloc APIs (without `core::arch`, the SIMD intrinsics for
@@ -165,14 +167,26 @@ service worker (sw.js): precache everything, serve from cache (docs from
   first if there are changes not pushed. What was last synced (commit and
   files) is kept per project, to tell changes here from changes there.
 
-- **Optional toolchains ("packs").** Toolchains that not everyone wants are
-  installed from the Toolchains dialog, not precached: `web/packs.json`
-  pins each pack's files by SHA-256, and `web/packs.js` downloads them,
-  checks them and puts them in a cache of their own ("packs"), under
-  `packs/<id>/<file>`. `sw.js` keeps that cache across versions, as the AI
-  model's, and serves it offline like the rest of the site, so a pack's code
-  loads its files from those same-origin paths. The one pack so far is
-  Python, Pyodide's core files (CPython and its standard library, 13 MB).
+- **Toolchains ("packs").** Each language's toolchain is a pack, installed
+  from the Toolchains dialog rather than precached with the site (2 MB):
+  `packs.json` pins each pack's files by SHA-256, and `web/packs.js`
+  downloads them, checks them and puts them in a cache of their own
+  ("packs"), at the pack's `dir` plus the file's name. `sw.js` keeps that
+  cache across versions, as the AI model's, and serves it offline like the
+  rest of the site, so a pack's code loads its files from those same-origin
+  paths. Each cached file is tagged with its pack and SHA-256: when a new
+  version pins different files, the page downloads only those, then
+  removes the pack's files that are no longer pinned. Which packs to keep is
+  a setting; packs marked `default` (Rust) are kept until removed.
+  Downloads bypass the service worker (`cache: "no-store"`), which would
+  serve the earlier file.
+
+  Rust's pack is the site's own toolchain and docs files (74 MB):
+  `scripts/stamp-sw.mjs` adds them to `packs.json` at build time, and leaves
+  them out of the precache. Content-hashed files come first, so an update
+  cut short leaves the indexes that name them as they were. Python's pack is
+  Pyodide's core files (CPython and its standard library, 13 MB), stored
+  under `packs/python/`.
   Its packages come from Pyodide's lock file (`pyodide-lock.json`), which
   names each one's file, SHA-256 and dependencies; installing one fetches
   those too, from the same CDN. Separate builds of the site per language
@@ -187,8 +201,8 @@ service worker (sw.js): precache everything, serve from cache (docs from
 
 ## Limits
 
-- About 74 MB is cached (60 MB toolchain, 14 MB docs); the first visit
-  downloads all of it.
+- Rust is about 74 MB (60 MB toolchain, 14 MB docs), which the first visit
+  downloads, after the 2 MB site.
 - Memory: rustc reserves up to 1 GiB of address space (512 MiB on devices
   reporting under 4 GB of RAM). Very large programs may run out.
 - Python: only packages that Pyodide builds for WebAssembly (no PyTorch, for

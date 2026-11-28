@@ -1,18 +1,28 @@
-// Optional toolchains ("packs"), such as Python, and their packages:
+// Toolchains ("packs"), such as Rust and Python, and their packages:
 // downloaded only when installed, into a cache of their own that sw.js
-// keeps across versions and serves offline, under packs/<id>/<file>.
-// What each pack is, pinned by SHA-256, is in packs.json.
+// keeps across versions and serves offline, at the pack's `dir` + the
+// file's name. What each pack is, pinned by SHA-256, is in packs.json
+// (Rust's files there are the site's own: scripts/stamp-sw.mjs adds them).
+// Each cached file is tagged with its pack and SHA-256, so an update
+// downloads only what changed, and removes the rest.
 
 const CACHE = "packs"; // the name sw.js keeps
+const PACK = "X-Pack";
+const SHA = "X-SHA256";
+const PACKAGE = "X-Package";
 const hex = (buf) => [...new Uint8Array(buf)].map((b) => b.toString(16).padStart(2, "0")).join("");
 
-/** The packs that can be installed: { id: { title, about, base, files, lock } }. */
+/** The packs that can be installed: { id: { title, about, base, dir, files,
+ *  lock?, default? } }. Default packs are installed unless removed. */
 export async function available() {
   return (await fetch("packs.json")).json();
 }
 
 /** Where a pack's file is served from, offline. */
-export const localPath = (id, name) => `packs/${id}/${name}`;
+const localPath = (pack, name) => new URL(pack.dir + name, location.href).href;
+
+/** Bytes to download for `pack`. */
+export const size = (pack) => pack.files.reduce((n, f) => n + f.size, 0);
 
 /** The packages `names` need, dependencies first: [{ name, file_name, sha256 }],
  *  from a Pyodide lock file's `packages`. Throws on an unknown name. */
@@ -34,7 +44,8 @@ export function withDependencies(packages, names) {
 
 /** Download `url` and check it against `sha256`; `onBytes(n)` follows it. */
 async function download(url, sha256, onBytes) {
-  const res = await fetch(url);
+  // Not from a cache: sw.js would serve an earlier version's file.
+  const res = await fetch(url, { cache: "no-store" });
   if (!res.ok) throw new Error(`${url}: ${res.status}`);
   const reader = res.body.getReader();
   const parts = [];
@@ -53,69 +64,88 @@ const typeOf = (name) => (name.endsWith(".mjs") ? "text/javascript"
   : name.endsWith(".wasm") ? "application/wasm"
   : name.endsWith(".json") ? "application/json" : "application/octet-stream");
 
-async function put(cache, id, name, blob) {
-  await cache.put(localPath(id, name), new Response(blob, { headers: { "Content-Type": typeOf(name) } }));
+/** Cache `blob` as file `name` of pack `id` (a package's, if `pkg`). */
+async function put(cache, id, pack, { name, sha256 }, blob, pkg) {
+  const headers = { "Content-Type": typeOf(name), [PACK]: id, [SHA]: sha256 };
+  if (pkg) headers[PACKAGE] = pkg;
+  await cache.put(localPath(pack, name), new Response(blob, { headers }));
 }
 
-/** Install pack `id` (its files, not yet any packages); `onProgress(done,
- *  total)` follows it, in bytes. */
+/** Whether file `f` of `pack` is cached, as pinned. */
+async function has(cache, pack, f) {
+  return (await cache.match(localPath(pack, f.name)))?.headers.get(SHA) === f.sha256;
+}
+
+/** The cached files of pack `id`: [[request, response]]. */
+async function cached(cache, id) {
+  const all = [];
+  for (const req of await cache.keys()) {
+    const res = await cache.match(req);
+    if (res?.headers.get(PACK) === id) all.push([req, res]);
+  }
+  return all;
+}
+
+/** Install or update pack `id` (its files, not yet any packages), then
+ *  remove its files from earlier versions; `onProgress(done, total)` follows
+ *  it, in bytes. */
 export async function install(pack, id, onProgress) {
   const cache = await caches.open(CACHE);
-  const total = pack.files.reduce((n, f) => n + f.size, 0);
+  const total = size(pack);
   let done = 0;
   for (const f of pack.files) {
-    if (await cache.match(localPath(id, f.name))) {
+    if (await has(cache, pack, f)) {
       done += f.size;
       continue;
     }
     const blob = await download(pack.base + f.name, f.sha256, (n) => onProgress?.((done += n), total));
-    await put(cache, id, f.name, blob);
+    await put(cache, id, pack, f, blob);
+  }
+  const current = new Set(pack.files.map((f) => localPath(pack, f.name)));
+  for (const [req, res] of await cached(cache, id)) {
+    if (!current.has(req.url) && !res.headers.has(PACKAGE)) await cache.delete(req);
   }
   onProgress?.(total, total);
 }
 
-/** Whether pack `id` is installed: all its files are cached. */
-export async function isInstalled(pack, id) {
+/** Whether `pack` is installed: all its files are cached, as pinned. */
+export async function isInstalled(pack) {
   const cache = await caches.open(CACHE);
-  for (const f of pack.files) if (!(await cache.match(localPath(id, f.name)))) return false;
+  for (const f of pack.files) if (!(await has(cache, pack, f))) return false;
   return true;
 }
 
 /** The pack's lock file's packages: { name: { file_name, sha256, depends } }. */
-export async function packages(id, pack) {
-  const res = await (await caches.open(CACHE)).match(localPath(id, pack.lock));
+export async function packages(pack) {
+  const res = pack.lock && await (await caches.open(CACHE)).match(localPath(pack, pack.lock));
   return res ? (await res.json()).packages : {};
 }
 
 /** The names of the packages installed in pack `id`. */
-export async function installedPackages(id, pack) {
-  const cache = await caches.open(CACHE);
-  const all = await packages(id, pack);
-  const names = [];
-  for (const [name, p] of Object.entries(all)) if (await cache.match(localPath(id, p.file_name))) names.push(name);
-  return names;
+export async function installedPackages(id) {
+  const names = (await cached(await caches.open(CACHE), id)).map(([, res]) => res.headers.get(PACKAGE));
+  return names.filter(Boolean).sort();
 }
 
 /** Install `names` and what they depend on; `onProgress(text)` says which. */
 export async function installPackages(id, pack, names, onProgress) {
   const cache = await caches.open(CACHE);
-  for (const p of withDependencies(await packages(id, pack), names)) {
-    if (await cache.match(localPath(id, p.file_name))) continue;
+  for (const p of withDependencies(await packages(pack), names)) {
+    const f = { name: p.file_name, sha256: p.sha256 };
+    if (await has(cache, pack, f)) continue;
     onProgress?.(`Downloading ${p.name}…`);
-    await put(cache, id, p.file_name, await download(pack.base + p.file_name, p.sha256));
+    await put(cache, id, pack, f, await download(pack.base + f.name, f.sha256), p.name);
   }
 }
 
 /** Remove package `name` (not what depends on it, which then won't load). */
-export async function removePackage(id, pack, name) {
-  const p = (await packages(id, pack))[name];
-  if (p) await (await caches.open(CACHE)).delete(localPath(id, p.file_name));
+export async function removePackage(pack, name) {
+  const p = (await packages(pack))[name];
+  if (p) await (await caches.open(CACHE)).delete(localPath(pack, p.file_name));
 }
 
 /** Remove pack `id` and its packages. */
 export async function remove(id) {
   const cache = await caches.open(CACHE);
-  for (const req of await cache.keys()) {
-    if (new URL(req.url).pathname.includes(`/packs/${id}/`)) await cache.delete(req);
-  }
+  for (const [req] of await cached(cache, id)) await cache.delete(req);
 }

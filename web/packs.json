@@ -53,5 +53,88 @@
         "size": 10125268
       }
     ]
+  },
+  "model-smollm2-135m": {
+    "title": "AI model: SmolLM2-135M",
+    "about": "The smallest and fastest (Apache-2.0, 8 bits). On bench/ (59 lines each), 24 Rust lines right and 42 Python.",
+    "base": "https://huggingface.co/ggml-org/SmolLM2-135M-GGUF/resolve/1076b85d135017971845b19b8d07df1479155988/",
+    "dir": "packs/models/",
+    "files": [
+      {
+        "name": "SmolLM2-135M-Q8_0.gguf",
+        "sha256": "813966e2b5e5aba261f6f198849a13b815db3c77bf4e389e72aa1e0f35a0d455",
+        "size": 144810560
+      }
+    ],
+    "model": {
+      "format": "starcoder2"
+    }
+  },
+  "model-smollm2-360m": {
+    "title": "AI model: SmolLM2-360M",
+    "about": "Larger (Apache-2.0, 8 bits), about twice as slow: 48 Rust lines right and 49 Python.",
+    "base": "https://huggingface.co/QuantFactory/SmolLM2-360M-GGUF/resolve/38cd16bc62ab1b1f0d320be8b518ac2fd80faa88/",
+    "dir": "packs/models/",
+    "files": [
+      {
+        "name": "SmolLM2-360M.Q8_0.gguf",
+        "sha256": "0a325a47c807debd1cb9c3f5c7f4c8d7a7689f3199cb56cee1104e3a39df1753",
+        "size": 386404352
+      }
+    ],
+    "model": {
+      "format": "starcoder2"
+    }
+  },
+  "model-qwen2.5-coder-0.5b-q4": {
+    "title": "AI model: Qwen2.5-Coder-0.5B, 4 bits",
+    "about": "A code model (Apache-2.0, Q4_K_M) that sees the code after the cursor too: 51 Rust lines right and 49 Python, a little slower than at 8 bits.",
+    "base": "https://huggingface.co/bartowski/Qwen2.5-Coder-0.5B-GGUF/resolve/01c1b8072277dfbfd0d051ec95b7a43bb23d2f6a/",
+    "dir": "packs/models/",
+    "files": [
+      {
+        "name": "Qwen2.5-Coder-0.5B-Q4_K_M.gguf",
+        "sha256": "fefe9d34df79d3ad3db33519d81112be76096626a5fdb87a98092035dc79ad68",
+        "size": 397808128
+      }
+    ],
+    "model": {
+      "format": "qwen",
+      "fim": true
+    }
+  },
+  "model-qwen2.5-coder-0.5b": {
+    "title": "AI model: Qwen2.5-Coder-0.5B",
+    "about": "A code model (Apache-2.0, 8 bits) that sees the code after the cursor too: the best here, 52 Rust lines right and 51 Python, at about twice the time of SmolLM2-135M.",
+    "base": "https://huggingface.co/bartowski/Qwen2.5-Coder-0.5B-GGUF/resolve/01c1b8072277dfbfd0d051ec95b7a43bb23d2f6a/",
+    "dir": "packs/models/",
+    "files": [
+      {
+        "name": "Qwen2.5-Coder-0.5B-Q8_0.gguf",
+        "sha256": "e22b205c234c1364f56b525eb35eb8d6917242f6e0a046469d90f9c1b2a924d8",
+        "size": 531068416
+      }
+    ],
+    "model": {
+      "format": "qwen",
+      "fim": true
+    }
+  },
+  "model-qwen2.5-coder-1.5b": {
+    "title": "AI model: Qwen2.5-Coder-1.5B, 4 bits",
+    "about": "The largest (Apache-2.0, Q4_K_M): no better than 0.5B on bench/, and about twice as slow; it needs some 2 GB of memory to load.",
+    "base": "https://huggingface.co/QuantFactory/Qwen2.5-Coder-1.5B-GGUF/resolve/73c3c696087d8d57a3005e31f2afe78f43059739/",
+    "dir": "packs/models/",
+    "files": [
+      {
+        "name": "Qwen2.5-Coder-1.5B.Q4_K_M.gguf",
+        "sha256": "a9ccb6be802412e61e1acbee6287a23b11e56e94718560f910075c64b6194910",
+        "size": 986048352
+      }
+    ],
+    "model": {
+      "format": "qwen",
+      "fim": true
+    }
   }
 }

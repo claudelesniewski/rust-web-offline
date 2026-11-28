@@ -53,8 +53,8 @@
         <input type="checkbox" id="vim"> Vim key bindings
       </label>
       <button id="toolchains-open" title="Choose which languages and packages are downloaded">Toolchains…</button>
-      <label id="ai-toggle" title="A small language model, run on this device, suggests the rest of the line, greyed out: Tab takes it, or Shift-Tab when a completion list is open too. Downloads 145 MB the first time.">
-        <input type="checkbox" id="ai"> AI suggestions (145 MB)
+      <label id="ai-toggle" title="A small language model, run on this device, suggests the rest of the line, greyed out: Tab takes it, or Shift-Tab when a completion list is open too. A model is downloaded the first time it is chosen (Toolchains… lists them).">
+        AI suggestions <select id="ai"><option value="">Off</option></select>
       </label>
     </div>
   </details>

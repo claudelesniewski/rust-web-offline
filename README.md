@@ -34,10 +34,13 @@ library run as WebAssembly on your machine; nothing is sent to a server.
   the compiler finds the type, and the offline docs list its methods; in
   Python, jedi (installed with Python) finds the members, and modules in
   imports.
-- Optional **AI** suggestions (in **Options**): a small language model (SmolLM2-135M, a 145 MB
-  download when turned on) runs on the device and suggests the rest of the
-  line, in Rust or Python, shown greyed out; Tab takes it (Shift-Tab when a completion list is
-  open too). Small means often wrong.
+- Optional **AI** suggestions (in **Options**): a small language model runs
+  on the device and suggests the rest of the line, in Rust or Python, shown
+  greyed out; Tab takes it (Shift-Tab when a completion list is open too).
+  Choose one of five models, each downloaded when first chosen (and listed
+  in Toolchains, to remove): from SmolLM2-135M (145 MB, fastest, often
+  wrong) to Qwen2.5-Coder-0.5B (531 MB, about twice as slow, right about
+  twice as often in Rust).
 - Offline documentation (**Docs** menu): the Rust Book, the Reference, and
   the std, core and alloc API docs with search; and Python's tutorial,
   library and language reference with search (a 6 MB pack, **Python docs**,

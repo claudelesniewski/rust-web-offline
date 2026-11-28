@@ -9,12 +9,12 @@
 // and `others` the project's other files. The groups: "tune", for trying
 // prompts and constraints on; "held-out", unlike those, to tell whether a
 // change only fits them; "multi-file", where the right line needs another
-// file. Configurations ({ name: { constrain, check, fixes, retries, ai } })
+// file. Configurations ({ name: { constrain, check, fixes, retries, fim, ai } })
 // turn on holding the model to the members there after a dot, and checking
-// the suggestion with the toolchain; `fixes` and `retries` override
-// createSuggester's (web/suggest.js), and `ai` ({ language: { repo } })
-// tries another name for the repository in the prompt. The real model is downloaded once (145 MB) into
-// build/cache/ai-bench; set V=1 to see each suggestion.
+// the suggestion with the toolchain; `fixes`, `retries` and `fim` override
+// createSuggester's (web/suggest.js; `fim` is the model's, by default), and
+// `ai` ({ language: { repo } }) tries another name for the repository in the
+// prompt. MODEL picks the model (below); set V=1 to see each suggestion.
 import { createHash } from "node:crypto";
 import { cpSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
@@ -33,24 +33,30 @@ const configs = process.argv[3] ? JSON.parse(readFileSync(process.argv[3], "utf8
 const site = mkdtempSync(join(tmpdir(), "ai-bench-"));
 cpSync("build/site", site, { recursive: true });
 cpSync("bench/page.js", join(site, "bench.js"));
-// The real model, as the app has it, from the cache; or MODEL, a GGUF
-// file, laid out as FORMAT (web/lm.js: starcoder2 or qwen).
-const index = JSON.parse(readFileSync(join(site, "lm/index.json"), "utf8"));
-const cached = process.env.MODEL ?? "build/cache/ai-bench/model.gguf";
-if (process.env.MODEL) {
-  index.model = { sha256: createHash("sha256").update(readFileSync(cached)).digest("hex"), format: process.env.FORMAT };
-} else if (!existsSync(cached)) {
-  mkdirSync("build/cache/ai-bench", { recursive: true });
-  console.log(`downloading ${index.model.url}`);
-  writeFileSync(cached, Buffer.from(await (await fetch(index.model.url)).arrayBuffer()));
+// The model: MODEL, one of the app's (a pack's id, SmolLM2-135M's by
+// default), downloaded once into build/cache/ai-bench; or a GGUF file, laid
+// out as FORMAT (web/lm.js: starcoder2 or qwen).
+const pinned = JSON.parse(readFileSync(join(site, "packs.json"), "utf8"));
+const choice = process.env.MODEL ?? "model-smollm2-135m";
+let model;
+let modelOf = { format: process.env.FORMAT ?? "starcoder2" };
+if (pinned[choice]?.model) {
+  const { base, files: [file], model: m } = pinned[choice];
+  const cached = `build/cache/ai-bench/${file.name}`;
+  if (!existsSync(cached)) {
+    mkdirSync("build/cache/ai-bench", { recursive: true });
+    console.log(`downloading ${base}${file.name}`);
+    writeFileSync(cached, Buffer.from(await (await fetch(base + file.name)).arrayBuffer()));
+  }
+  model = readFileSync(cached);
+  if (createHash("sha256").update(model).digest("hex") !== file.sha256) throw new Error(`${cached}: checksum mismatch`);
+  modelOf = m;
+} else {
+  model = readFileSync(choice);
 }
-const model = readFileSync(cached);
-if (createHash("sha256").update(model).digest("hex") !== index.model.sha256) throw new Error(`${cached}: checksum mismatch`);
 writeFileSync(join(site, "model.gguf"), model);
-writeFileSync(join(site, "lm/index.json"), JSON.stringify({ ...index, model: { ...index.model, url: "model.gguf" } }));
 // Python from the files fetch-toolchain.sh pinned, as tests/e2e.mjs has it.
 cpSync("build/cache/toolchain/test/pyodide", join(site, "test-pyodide"), { recursive: true });
-const pinned = JSON.parse(readFileSync(join(site, "packs.json"), "utf8"));
 pinned.python.base = "test-pyodide/";
 writeFileSync(join(site, "packs.json"), JSON.stringify(pinned));
 
@@ -65,7 +71,7 @@ try {
   await page.locator("#offline.ready").waitFor({ timeout: 300_000 });
   await page.waitForFunction(() => crossOriginIsolated, null, { timeout: 60_000 });
   const suites = Object.fromEntries(languages.map((l) => [l, JSON.parse(readFileSync(`bench/${l}.json`, "utf8"))]));
-  const results = await page.evaluate(async ([s, c]) => (await import("./bench.js")).run(s, c), [suites, configs]);
+  const results = await page.evaluate(async ([s, c, m]) => (await import("./bench.js")).run(s, c, m), [suites, configs, modelOf]);
   for (const [name, byLanguage] of Object.entries(results)) {
     for (const [language, rows] of Object.entries(byLanguage)) {
       const good = (r) => r.ok && r.checked;

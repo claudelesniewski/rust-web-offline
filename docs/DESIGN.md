@@ -127,7 +127,7 @@ service worker (sw.js): precache the site, serve it and the installed
     those it deems machine-applicable or maybe incorrect; up to two rounds)
     mend it: `read_line(input)` becomes `read_line(&mut input)`. After a
     dot, a member that fails the check is tried once more without it, as
-    the model's next pick (`read` after `read_line`).
+    the model's next pick (`read_line` after `read`).
 
   Measured on 18 lines of Rust (`push(i)`, `read_line(&mut input)`,
   `.iter().enumerate()`, …), in headless Chromium on 4 cores, with the

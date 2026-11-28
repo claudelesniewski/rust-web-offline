@@ -10,7 +10,6 @@ What Rust has and Python doesn't yet:
 - Completion: keywords and names, and members after `.` (Rust's is
   type-aware, with the compiler and the docs).
 - AI suggestions (their prompt and check are Rust's).
-- Format.
 - Offline docs: the Python documentation, searchable.
 
 ## IDE features

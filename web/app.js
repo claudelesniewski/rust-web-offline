@@ -845,7 +845,8 @@ function format() {
   current = nextId++;
   setBusy(true);
   terminal.clear();
-  compiler.postMessage({ type: "format", id: current, name: active, content: editor.text() });
+  const list = [...files].map(([name, content]) => ({ name, content }));
+  compiler.postMessage({ type: "format", id: current, name: active, content: editor.text(), files: list });
 }
 
 /** Format the open Python file with Ruff, installing it first (asking). */

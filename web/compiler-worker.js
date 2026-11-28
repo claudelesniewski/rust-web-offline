@@ -9,7 +9,8 @@
 //       `mod other;` works) and, if that succeeds, run it.
 //   { type: "test", id, files, main }       compile `main`'s tests, and run
 //                                           each (answered by a "test" each)
-//   { type: "format", id, name, content }   rustfmt one file
+//   { type: "format", id, name, content, files }  rustfmt one file, beside
+//                                           the project's others
 //   { type: "check", id, files, main, json }  type-check only (for type-aware
 //                                           completion, and AI suggestions:
 //                                           with `json`, rustc's JSON
@@ -253,11 +254,13 @@ async function test({ id, files, main }) {
   finish(id);
 }
 
-async function format({ id, name, content }) {
+/** rustfmt file `name` (`content`), beside the project's other `files`:
+ *  it follows `mod x;` into them (their formatting is not kept). */
+async function format({ id, name, content, files = [] }) {
   await ready;
   status("Formatting…");
   const t0 = performance.now();
-  const { code, dir } = await compile(id, [{ name, content }],
+  const { code, dir } = await compile(id, [...files.filter((f) => f.name !== name), { name, content }],
     (src) => ["rustfmt", "--edition=2024", `${src}/${name}`], { env: { RUSTC_RUSTFMT: "1" } });
   const bytes = kernel.fs.readFile(`${dir}/src/${name}`);
   kernel.fs.remove(dir);

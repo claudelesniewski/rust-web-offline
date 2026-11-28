@@ -162,3 +162,9 @@ button.link { border: 0; background: none; padding: 0; color: #7cc4ff; text-deco
 #toolchains-dialog .packages span { border: 1px solid var(--border); border-radius: 4px; padding: 1px 6px; font-size: 13px; }
 #toolchains-dialog .add { display: flex; gap: 6px; }
 #toolchains-dialog .add input { flex: 1; }
+
+/* Hover docs (vendor/editor.js). */
+.cm-hover-doc { max-width: 36em; max-height: 16em; overflow: auto; padding: 6px 8px; font: 13px/1.4 system-ui, sans-serif; }
+.cm-hover-doc code { display: block; font: 12px/1.4 ui-monospace, monospace; white-space: pre-wrap; }
+.cm-hover-doc p { margin: 6px 0 0; white-space: pre-wrap; }
+.cm-hover-doc a { display: inline-block; margin-top: 6px; }

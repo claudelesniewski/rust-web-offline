@@ -173,6 +173,23 @@ try {
     await setCode("geometry.rs", "pub fn double(x: i32) -> i32 { x * 2 }\n");
   });
 
+  await step("hover docs for Rust: a type's from the offline docs, a method's after a dot", async () => {
+    await setCode("main.rs", "fn main() {\n    let mut v: Vec<i32> = Vec::new();\n    v.push(1);\n}\n");
+    const hoverOn = async (word, nth = 0) => {
+      await page.mouse.move(0, 0);
+      await page.locator(".cm-hover-doc").waitFor({ state: "detached" });
+      await page.locator(".cm-line span", { hasText: new RegExp(`^${word}$`) }).nth(nth).hover();
+      await page.locator(".cm-hover-doc").waitFor({ timeout: 30_000 });
+      return page.locator(".cm-hover-doc").innerText();
+    };
+    const vec = await hoverOn("Vec");
+    assert.match(vec, /^struct std::vec::Vec\n+A contiguous growable array type/);
+    assert.equal(await page.locator(".cm-hover-doc a").getAttribute("href"), "docs/std/vec/struct.Vec.html");
+    assert.match(await hoverOn("push"), /^push\(&mut self, value: T\)\n+Appends an element/);
+    await page.mouse.move(0, 0);
+    await setCode("main.rs", 'mod geometry;\nfn main() { println!("{}", geometry::double(21)); }\n');
+  });
+
   await step("find and replace in all files", async () => {
     await page.locator('#file-list li[data-name="main.rs"]').click();
     await page.keyboard.press("ControlOrMeta+Shift+f");
@@ -400,8 +417,7 @@ try {
     await page.mouse.up();
     const taller = await height();
     assert.ok(Math.abs(taller - before - 100) < 5, `${before} -> ${taller}`);
-    const saved = await page.evaluate(() => import("./store.js").then((s) => s.getSetting("layout")));
-    assert.ok(saved.editor > 0 && saved.editor < 0.6, JSON.stringify(saved));
+    // Kept even by a reload right after the drag.
     await page.reload();
     await waitReady();
     assert.ok(Math.abs((await height()) - taller) < 2);
@@ -567,6 +583,18 @@ try {
     // The call that led there.
     await page.locator('#file-list li[data-name="oops.py"]').click();
     assert.equal(await page.locator(".cm-lintRange-info").innerText(), "calc.half(4)");
+  });
+
+  await step("hover docs for Python, from jedi", async () => {
+    await setCode("calc.py", 'def half(x):\n    """Half of x."""\n    return x / 0\n');
+    await page.locator('#file-list li[data-name="oops.py"]').click();
+    await page.mouse.move(0, 0);
+    await page.locator(".cm-line span", { hasText: /^half$/ }).hover();
+    await page.locator(".cm-hover-doc").waitFor({ timeout: 60_000 });
+    assert.match(await page.locator(".cm-hover-doc").innerText(), /^half\(x\)\n+Half of x\./);
+    await page.mouse.move(0, 0);
+    await setCode("calc.py", "def half(x):\n    return x / 0\n");
+    await page.locator('#file-list li[data-name="oops.py"]').click();
   });
 
   await step("run Python's tests: unittest's, and test_ functions", async () => {

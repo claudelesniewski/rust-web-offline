@@ -1,7 +1,7 @@
 // CodeMirror 6 with Rust highlighting, bundled by scripts/build.sh into editor.js.
 import { basicSetup } from "codemirror";
 import { Compartment, EditorState } from "@codemirror/state";
-import { EditorView, keymap, tooltips } from "@codemirror/view";
+import { EditorView, hoverTooltip, keymap, tooltips } from "@codemirror/view";
 import { indentLess, indentMore } from "@codemirror/commands";
 import { indentUnit } from "@codemirror/language";
 import { acceptCompletion, closeCompletion, ifNotIn, startCompletion } from "@codemirror/autocomplete";
@@ -12,6 +12,20 @@ import { oneDark } from "@codemirror/theme-one-dark";
 import { pythonCompletions, rustCompletions } from "./completion.js";
 import { acceptGhost, dropGhost, ghostText } from "./ghost.js";
 import { Vim, vim } from "@replit/codemirror-vim";
+
+/** A hover's card: its title (a signature), its body, and a link to its docs. */
+function hoverCard({ title, body, link }) {
+  const dom = document.createElement("div");
+  dom.className = "cm-hover-doc";
+  const head = dom.appendChild(document.createElement("code"));
+  head.textContent = title;
+  if (body) dom.appendChild(document.createElement("p")).textContent = body;
+  if (link) {
+    const a = dom.appendChild(document.createElement("a"));
+    Object.assign(a, { href: link, target: "_blank", textContent: "Open the docs" });
+  }
+  return dom;
+}
 
 /** Each editor's view -> what Vim's :w does in it. */
 const savers = new WeakMap();
@@ -45,6 +59,7 @@ export function createEditor(parent, { onChange, keys = [], onSave = () => {}, o
   const states = new Map();
   let suggest = null;
   let members = null;
+  let hover = null;
   // Vim key bindings, when on: first, so that they come before the others.
   const vimMode = new Compartment();
   let vimOn = false;
@@ -69,6 +84,11 @@ export function createEditor(parent, { onChange, keys = [], onSave = () => {}, o
       },
     }),
     ghostText(() => suggest),
+    hoverTooltip(async (view, pos) => {
+      const word = hover && view.state.wordAt(pos);
+      const info = word && (await hover(view.state.doc.toString(), word.from, word.to));
+      return info ? { pos: word.from, end: word.to, above: true, create: () => ({ dom: hoverCard(info) }) } : null;
+    }, { hoverTime: 400 }),
     // Completion lists and their docs may reach beyond the editor's pane.
     tooltips({ parent: document.body }),
     basicSetup,
@@ -129,6 +149,9 @@ export function createEditor(parent, { onChange, keys = [], onSave = () => {}, o
      *  the options after a dot, or in Python's imports (or null), or off
      *  with null. */
     setMembers(fn) { members = fn; },
+    /** Show docs on hover with `fn(doc, from, to)`, which returns { title,
+     *  body, link? } for the word at [from, to), or null; or none, with null. */
+    setHover(fn) { hover = fn; },
     /** Turn Vim key bindings on or off, in every file. */
     setVim(on) {
       vimOn = on;

@@ -14,6 +14,7 @@ import { createGitHub } from "./github.js";
 import * as sync from "./sync.js";
 import { initLayout } from "./layout.js";
 import { find, replaceAll } from "./find.js";
+import { rank } from "./palette.js";
 import { renameError, renameIn } from "./rename.js";
 import * as packs from "./packs.js";
 import { LANGUAGES, findLocations, languageOf, validName, withExtension } from "./languages.js";
@@ -536,14 +537,18 @@ function renderFind() {
   $("find-count").textContent = $("find-query").value ? `${matches.length} found` : "";
 }
 
+function openFind() {
+  if (!$("find-dialog").open) $("find-dialog").showModal();
+  $("find-query").select();
+  renderFind();
+}
+
 function setupFind() {
   document.addEventListener("keydown", (e) => {
     if ((e.ctrlKey || e.metaKey) && e.shiftKey && e.key.toLowerCase() === "f") {
       e.preventDefault();
       e.stopPropagation();
-      if (!$("find-dialog").open) $("find-dialog").showModal();
-      $("find-query").select();
-      renderFind();
+      openFind();
     }
   }, true);
   $("find-query").oninput = renderFind;
@@ -555,6 +560,114 @@ function setupFind() {
     if (!count || !confirm(`Replace ${count} ${count === 1 ? "match" : "matches"} of "${query}" in all files?`)) return;
     applyEdits(replaceAll(files, query, $("find-replacement").value, findOptions()));
     renderFind();
+  };
+}
+
+// ---- Command palette and quick open ----------------------------------------
+
+/** Choose `value` in `select`, as if by hand. */
+function choose(select, value) {
+  select.value = value;
+  select.dispatchEvent(new Event("change"));
+}
+
+/** The commands, as { label, keys?, run }. */
+function commands() {
+  const click = (id) => () => $(id).click();
+  const docs = [...$("docs").querySelectorAll("optgroup option")].map((o) => (
+    { label: `Docs: ${o.parentElement.label} — ${o.textContent}`, run: () => choose($("docs"), o.value) }));
+  const models = [...$("ai").options].map((o) => (
+    { label: `AI suggestions: ${o.textContent}`, run: () => choose($("ai"), o.value) }));
+  return [
+    { label: "Run", keys: "Ctrl-Enter", run: click("run") },
+    { label: "Test", run: click("test") },
+    { label: "Format", keys: "Shift-Alt-F", run: click("format") },
+    { label: "Stop", run: click("stop") },
+    { label: "Open file…", keys: "Ctrl-P", run: () => openPalette("files") },
+    { label: "New file…", run: click("new-file") },
+    { label: "Rename file…", run: click("rename-file") },
+    { label: "Delete file…", run: click("delete-file") },
+    { label: "Import…", run: click("import") },
+    { label: "Export file", run: click("export") },
+    { label: "Export all", run: click("export-all") },
+    { label: "New project…", run: click("new-project") },
+    { label: "GitHub sync…", run: click("github-project") },
+    { label: "Find in files…", keys: "Ctrl-Shift-F", run: openFind },
+    { label: "Go to definition", keys: "F12", run: () => editor.goToDefinition() },
+    { label: "Toolchains…", run: click("toolchains-open") },
+    ...docs,
+    { label: `Vim key bindings: turn ${$("vim").checked ? "off" : "on"}`, run: () => setVim(!$("vim").checked) },
+    { label: `Type-aware completion: turn ${$("types").checked ? "off" : "on"}`, run: () => setTypes(!$("types").checked) },
+    ...models,
+  ];
+}
+
+/** The palette's items, those that match what is typed, and the chosen one. */
+let paletteItems = [];
+let paletteShown = [];
+let paletteSelected = 0;
+
+function renderPalette() {
+  paletteShown = rank($("palette-query").value, paletteItems, (item) => item.label);
+  paletteSelected = Math.min(paletteSelected, Math.max(paletteShown.length - 1, 0));
+  const list = $("palette-list");
+  list.textContent = "";
+  paletteShown.forEach((item, i) => {
+    const li = document.createElement("li");
+    li.textContent = item.label;
+    if (item.keys) li.append(Object.assign(document.createElement("kbd"), { textContent: item.keys }));
+    li.className = i === paletteSelected ? "selected" : "";
+    li.onclick = () => runPaletteItem(item);
+    list.append(li);
+  });
+  list.children[paletteSelected]?.scrollIntoView({ block: "nearest" });
+}
+
+function runPaletteItem(item) {
+  $("palette-dialog").close();
+  item.run();
+}
+
+/** Show the commands ("commands") or the project's files ("files") to pick from. */
+function openPalette(kind) {
+  paletteItems = kind === "files"
+    ? [...files.keys()].sort().map((name) => ({ label: name, run: () => openFile(name) }))
+    : commands();
+  $("palette-query").value = "";
+  $("palette-query").placeholder = kind === "files" ? "Open a file" : "Run a command";
+  paletteSelected = 0;
+  if (!$("palette-dialog").open) $("palette-dialog").showModal();
+  $("palette-query").focus();
+  renderPalette();
+}
+
+function setupPalette() {
+  // Capturing, so that it comes before the editor's keys (Vim's too).
+  document.addEventListener("keydown", (e) => {
+    if ((e.ctrlKey || e.metaKey) && !e.altKey && e.key.toLowerCase() === "p") {
+      e.preventDefault();
+      e.stopPropagation();
+      openPalette(e.shiftKey ? "commands" : "files");
+    }
+  }, true);
+  $("palette-open").onclick = () => {
+    $("options").open = false;
+    openPalette("commands");
+  };
+  $("palette-query").oninput = () => {
+    paletteSelected = 0;
+    renderPalette();
+  };
+  $("palette-query").onkeydown = (e) => {
+    const move = { ArrowDown: 1, ArrowUp: -1 }[e.key];
+    if (move && paletteShown.length) {
+      e.preventDefault();
+      paletteSelected = (paletteSelected + move + paletteShown.length) % paletteShown.length;
+      renderPalette();
+    } else if (e.key === "Enter" && paletteShown.length) {
+      e.preventDefault();
+      runPaletteItem(paletteShown[paletteSelected]);
+    }
   };
 }
 
@@ -1192,6 +1305,7 @@ setupFileActions();
 setupProjectActions();
 setupSync();
 setupFind();
+setupPalette();
 loadProjects().catch((e) => setStatus(`Could not load your files: ${e}`));
 setupServiceWorker().catch((e) => showOffline("", `Offline: unavailable (${e.message})`));
 requestPersistence();

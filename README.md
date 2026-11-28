@@ -14,7 +14,9 @@ library run as WebAssembly on your machine; nothing is sent to a server.
   of its language (not in strings or comments), each file's change undoable
   with Ctrl-Z. Hovering over a name shows its docs: in
   Rust, a std type's (from the offline docs) or a method's after a dot; in
-  Python, jedi's signature and docstring.
+  Python, jedi's signature and docstring. A command palette (Ctrl-Shift-P,
+  or Options → **Commands…**) runs any command by typing part of its name;
+  Ctrl-P opens a file the same way.
 - Projects, each with its own files, saved automatically in the browser
   (IndexedDB). Other files are modules, in folders too: `mod foo;` uses
   `foo.rs` or `foo/mod.rs`. Import `.rs` files; export one file or a whole

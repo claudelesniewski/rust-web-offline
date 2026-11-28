@@ -8,8 +8,10 @@
 //       Compile `main` (one of `files`, all written side by side in src/ so
 //       `mod other;` works) and, if that succeeds, run it.
 //   { type: "format", id, name, content }   rustfmt one file
-//   { type: "check", id, files, main }      type-check only (for type-aware
-//                                           completion); answered by "checked"
+//   { type: "check", id, files, main, json }  type-check only (for type-aware
+//                                           completion, and AI suggestions:
+//                                           with `json`, rustc's JSON
+//                                           diagnostics); answered by "checked"
 //   { type: "stdin", id, text }              feed the running program
 //   { type: "eof", id }                      close its stdin
 //   { type: "kill", id }                     stop compiling or running
@@ -218,14 +220,14 @@ async function format({ id, name, content }) {
   finish(id);
 }
 
-async function check({ id, files, main }) {
+async function check({ id, files, main, json = false }) {
   await ready;
   const dec = new TextDecoder();
   let output = "";
   const { dir } = await compile(id, files, (src, dir) => [
     "rustc", `${src}/${main}`, "--edition=2024", "--crate-name=main", "--crate-type=bin",
     `--target=${TARGET}`, `--sysroot=${SYSROOT}`, "--emit=metadata", "-o", `${dir}/out.rmeta`,
-    `--remap-path-prefix=${dir}/=`, "--color=never", "-Zthreads=1",
+    `--remap-path-prefix=${dir}/=`, "--color=never", "-Zthreads=1", ...(json ? ["--error-format=json"] : []),
   ], { out: (bytes) => { output += dec.decode(bytes, { stream: true }); } });
   kernel.fs.remove(dir);
   killed.delete(id);

@@ -1,13 +1,13 @@
 // The page: files, editor, terminal, and the service worker that makes it
 // all work offline.
 import { createEditor } from "./editor.js";
-import { parseDiagnostics } from "./diagnostics.js";
+import { fixOnLine, parseDiagnostics } from "./diagnostics.js";
 import { Terminal } from "./terminal.js";
 import { EXAMPLES } from "./examples.js";
 import { zip } from "./zip.js";
 import * as store from "./store.js";
 import * as lm from "./lm.js";
-import { createTypeCompletion, errorOnLine } from "./types.js";
+import { createTypeCompletion } from "./types.js";
 import { createSuggester, withBlockBody } from "./suggest.js";
 import { createGitHub } from "./github.js";
 import * as sync from "./sync.js";
@@ -745,10 +745,10 @@ async function pythonMembers(doc, from, to) {
   return options?.length ? options : null;
 }
 
-/** Whether Python finds a problem on `line` of `source`: a syntax error,
- *  or a name bound nowhere. */
-async function pythonRejects(source, line) {
-  return (await askPython({ type: "lint", source: withBlockBody(source, line) }))?.includes(line) ?? false;
+/** Whether Python finds a problem on `line` of `source`, a syntax error or
+ *  a name bound nowhere: null if not, else { fixed: null } (no fixes). */
+async function pythonCheck(source, line) {
+  return (await askPython({ type: "lint", source: withBlockBody(source, line) }))?.includes(line) ? { fixed: null } : null;
 }
 
 function startPython() {
@@ -963,12 +963,13 @@ $("toolchains-close").onclick = () => $("toolchains-dialog").close();
 /** Type checks in progress: id -> resolve. */
 const checks = new Map();
 
-/** Type-check the program with `source` as the open file; rustc's output. */
-function check(source) {
+/** Type-check the program with `source` as the open file; rustc's output
+ *  (its JSON diagnostics, if `json`). */
+function check(source, json = false) {
   if (!ready) return Promise.resolve("");
   const id = nextId++;
   const list = [...files].map(([name, content]) => ({ name, content: name === active ? source : content }));
-  compiler.postMessage({ type: "check", id, files: list, main: active });
+  compiler.postMessage({ type: "check", id, files: list, main: active, json });
   return new Promise((resolve) => checks.set(id, resolve));
 }
 
@@ -1024,16 +1025,16 @@ async function setAI(on, { ask = true } = {}) {
     state("loading", "loading…");
     model = await lm.loadModel((done, total) => state("loading", `${mb(done)} / ${mb(total)} MB`));
     if (!$("ai").checked) return model.unload(); // turned off meanwhile
-    const rejects = {
-      rust: async (source, line) => errorOnLine(await check(source), active, line),
-      python: pythonRejects,
+    const lineChecks = {
+      rust: async (source, line) => fixOnLine(await check(source, true), active, line, source.split("\n")[line - 1]),
+      python: pythonCheck,
     };
     const suggesters = new Map(LANGUAGES.map((l) => [l, createSuggester({
       complete: model.complete,
       ai: l.ai,
       // Right after a dot, only the members there; with type-aware completion on.
       members: (doc, from, to) => ($("types").checked ? members(doc, from, to) : null),
-      rejects: rejects[l.id],
+      check: lineChecks[l.id],
       main: () => active,
       // The other files in the same language.
       others: () => [...files].filter(([name]) => name !== active && languageOf(name) === l)

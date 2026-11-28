@@ -41,3 +41,34 @@ export function parseDiagnostics(output) {
   }
   return found;
 }
+
+/** Whether rustc's JSON diagnostics (`output`, from --error-format=json)
+ *  have an error on `line` (from 1) of `file`: null if not, else { fixed },
+ *  `text` (that line) with the fixes rustc suggests for its errors there
+ *  applied, or null if it suggests none. Fixes that overlap one taken are
+ *  left out (rustc offers alternatives so), and so are those with
+ *  placeholders. */
+export function fixOnLine(output, file, line, text) {
+  const path = `src/${file}`;
+  const at = (s) => s.file_name === path && s.line_start === line && s.line_end === line;
+  let error = false;
+  const edits = [];
+  for (const json of output.split("\n")) {
+    if (!json.startsWith("{")) continue;
+    const d = JSON.parse(json);
+    if (d.level !== "error" || !d.spans.some((s) => s.is_primary && at(s))) continue;
+    error = true;
+    for (const s of d.children.flatMap((c) => c.spans)) {
+      if (at(s) && s.suggested_replacement !== null && /^(MachineApplicable|MaybeIncorrect)$/.test(s.suggestion_applicability)) {
+        edits.push({ from: s.column_start - 1, to: s.column_end - 1, insert: s.suggested_replacement });
+      }
+    }
+  }
+  if (!error) return null;
+  const taken = [];
+  for (const e of edits) if (!taken.some((t) => e.from < t.to && t.from < e.to || e.from === t.from)) taken.push(e);
+  if (!taken.length) return { fixed: null };
+  let fixed = text;
+  for (const e of taken.sort((a, b) => b.from - a.from)) fixed = fixed.slice(0, e.from) + e.insert + fixed.slice(e.to);
+  return { fixed };
+}

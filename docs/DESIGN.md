@@ -122,7 +122,12 @@ service worker (sw.js): precache the site, serve it and the installed
   - Right after a dot, type-aware completion finds the members there, and a
     llama.cpp grammar (GBNF) makes the model start with one of them.
   - The suggestion is type-checked in place, and not shown if rustc finds
-    an error on its line (or if it is only a comment, which always compiles).
+    an error on its line (or if it is only a comment, which always compiles),
+    unless rustc's own suggested fixes for it (from `--error-format=json`,
+    those it deems machine-applicable or maybe incorrect; up to two rounds)
+    mend it: `read_line(input)` becomes `read_line(&mut input)`. After a
+    dot, a member that fails the check is tried once more without it, as
+    the model's next pick (`read` after `read_line`).
 
   Measured on 18 lines of Rust (`push(i)`, `read_line(&mut input)`,
   `.iter().enumerate()`, …), in headless Chromium on 4 cores, with the
@@ -165,11 +170,20 @@ service worker (sw.js): precache the site, serve it and the installed
   | --- | --- | --- | --- |
   | model alone | 9 (2 held out, 1 multi-file) | 21 (6, 2) | 0.2 s, 0.15 s |
   | held to the members after a dot | 10 (3, 1) | 22 (6, 3) | 0.3 s, 0.2 s |
-  | checked | 9 (2, 1) | 21 (6, 2) | 0.3 s, 0.2 s |
-  | both (as the app) | 10 (3, 1) | 22 (6, 3) | 0.5 s, 0.2 s |
+  | checked (Rust: and fixed) | 10 (2, 1) | 21 (6, 2) | 0.3 s, 0.2 s |
+  | both (as the app) | 12 (3, 1) | 22 (6, 3) | 0.55 s, 0.2 s |
 
-  The check's gain is mostly in what it hides: of Python's 29, the model
-  alone shows 8 wrong lines, and the app 6 (Rust: 20, and 8). Python's
+  Without rustc's fixes and the second pick of a member, the app got 10 in
+  Rust; the fixes alone, 11; three picks rather than two, no more, and
+  slower. Both gains are among the 18 tuned on (`read_line(&mut input)`,
+  `println!("{}", name)`), though nothing in them is tuned to those lines.
+  The check's gain is otherwise in what it hides: of Python's 29, the model
+  alone shows 8 wrong lines, and the app 6 (Rust: 20, and 11, as fixed
+  lines that compile but aren't the one wanted show too). Python's check
+  has no fixes to offer, and a second pick of a member found none better.
+  Filling in the middle (the code after the cursor too, with the
+  tokenizer's `<fim_…>` tokens) made the model write nonsense: 0 and 1
+  right, so it wasn't trained to. Python's
   repository named `python`, `TheAlgorithms/Python` or `python-exercises`
   did no better; up to 48 tokens a suggestion, rather than 32, got one more
   Python line right that was cut before its end.

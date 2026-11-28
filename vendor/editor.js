@@ -2,7 +2,7 @@
 import { basicSetup } from "codemirror";
 import { Compartment, EditorState } from "@codemirror/state";
 import { EditorView, hoverTooltip, keymap, tooltips } from "@codemirror/view";
-import { indentLess, indentMore } from "@codemirror/commands";
+import { indentLess, indentMore, isolateHistory } from "@codemirror/commands";
 import { indentUnit } from "@codemirror/language";
 import { acceptCompletion, closeCompletion, ifNotIn, startCompletion } from "@codemirror/autocomplete";
 import { lintGutter, setDiagnostics } from "@codemirror/lint";
@@ -53,10 +53,11 @@ const tab = {
 /** An editor in `parent`. `onChange(text)` follows every edit; `keys` are
  *  extra bindings, as in CodeMirror's keymap ({ key, run }); `onSave` is
  *  called on Vim's :w; `onDefinition(word, pos)` on F12 or Ctrl/Cmd-click on
- *  a word. Each file gets its own state (and undo history) via
- *  `open(name, text)`. */
-export function createEditor(parent, { onChange, keys = [], onSave = () => {}, onDefinition = () => {} }) {
+ *  a word; `onRename(word, pos)` on F2 on a word. Each file gets its own
+ *  state (and undo history) via `open(name, text)`. */
+export function createEditor(parent, { onChange, keys = [], onSave = () => {}, onDefinition = () => {}, onRename = () => {} }) {
   const states = new Map();
+  let shown = null;
   let suggest = null;
   let members = null;
   let hover = null;
@@ -70,10 +71,16 @@ export function createEditor(parent, { onChange, keys = [], onSave = () => {}, o
     if (word) onDefinition(state.sliceDoc(word.from, word.to), word.from);
     return word !== null;
   };
+  const rename = (state) => {
+    const word = state.wordAt(state.selection.main.head);
+    if (word) onRename(state.sliceDoc(word.from, word.to), word.from);
+    return word !== null;
+  };
   const extensions = (name) => [
     vimMode.of(vimExtension()),
     keymap.of([...keys, tab, { key: "Escape", run: dropGhost },
-      { key: "F12", run: (v) => definition(v.state, v.state.selection.main.head) }]),
+      { key: "F12", run: (v) => definition(v.state, v.state.selection.main.head) },
+      { key: "F2", run: (v) => rename(v.state) }]),
     EditorView.domEventHandlers({
       mousedown(e, v) {
         if (!(e.ctrlKey || e.metaKey)) return false;
@@ -115,13 +122,27 @@ export function createEditor(parent, { onChange, keys = [], onSave = () => {}, o
     open(name, text) {
       if (!states.has(name)) states.set(name, EditorState.create({ doc: text, extensions: extensions(name) }));
       view.setState(states.get(name));
+      shown = name;
       view.focus();
     },
     /** Forget a file's state (deleted or renamed). */
     forget(name) { states.delete(name); },
     text: () => view.state.doc.toString(),
-    /** Replace the whole text, as one undoable edit. */
-    replace(text) { view.dispatch({ changes: { from: 0, to: view.state.doc.length, insert: text } }); },
+    /** Replace the whole text of file `name` (the open one by default), as
+     *  one undoable edit of the part that differs. */
+    replace(text, name = shown) {
+      const state = name === shown ? view.state : states.get(name);
+      if (!state) return;
+      const old = state.doc.toString();
+      let from = 0;
+      while (from < Math.min(old.length, text.length) && old[from] === text[from]) from++;
+      let end = 0;
+      while (end < Math.min(old.length, text.length) - from && old.at(-1 - end) === text.at(-1 - end)) end++;
+      const changes = { from, to: old.length - end, insert: text.slice(from, text.length - end) };
+      const tr = state.update({ changes, annotations: isolateHistory.of("full") });
+      if (name === shown) view.dispatch(tr);
+      else states.set(name, tr.state);
+    },
     /** Put the cursor at `line` and `col` (from 1), in view. */
     goto(line, col) {
       const doc = view.state.doc;

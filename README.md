@@ -10,7 +10,9 @@ library run as WebAssembly on your machine; nothing is sent to a server.
   functions), **Format** (rustfmt), and a terminal panel with stdin. Places in compiler
   errors and panics (`src/main.rs:3:7`) are links to the code. F12 (or
   Ctrl-click) goes to where a name is defined, in Rust or Python: a good
-  guess, from the code's text. Hovering over a name shows its docs: in
+  guess, from the code's text. F2 renames a name in all the project's files
+  of its language (not in strings or comments), each file's change undoable
+  with Ctrl-Z. Hovering over a name shows its docs: in
   Rust, a std type's (from the offline docs) or a method's after a dot; in
   Python, jedi's signature and docstring.
 - Projects, each with its own files, saved automatically in the browser
@@ -31,7 +33,7 @@ library run as WebAssembly on your machine; nothing is sent to a server.
   `input()` included, and a traceback's places are links (and underlined);
   add packages from Pyodide's (numpy, pandas, …) in the same dialog, or
   remove them. **Format** for `.py` files uses Ruff (10 MB, installed when
-  first used).
+  first used), which, once installed, also lints them as you type.
 - Optional Vim key bindings (in **Options**), with `:w` to save.
 - Type-aware completion after `.` (on by default, in **Options**): in Rust,
   the compiler finds the type, and the offline docs list its methods (and
@@ -45,7 +47,7 @@ library run as WebAssembly on your machine; nothing is sent to a server.
   Choose one of five models, each downloaded when first chosen (and listed
   in Toolchains, to remove): from SmolLM2-135M (145 MB, fastest, often
   wrong) to Qwen2.5-Coder-0.5B (531 MB, about twice as slow, right about
-  twice as often in Rust).
+  twice as often in Rust: listed first, as recommended).
 - Offline documentation (**Docs** menu): the Rust Book, the Reference, and
   the std, core and alloc API docs with search; and Python's tutorial,
   library and language reference with search (a 6 MB pack, **Python docs**,

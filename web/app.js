@@ -14,10 +14,11 @@ import { createGitHub } from "./github.js";
 import * as sync from "./sync.js";
 import { initLayout } from "./layout.js";
 import { find, replaceAll } from "./find.js";
+import { renameError, renameIn } from "./rename.js";
 import * as packs from "./packs.js";
 import { LANGUAGES, findLocations, languageOf, validName, withExtension } from "./languages.js";
 import { parseTraceback } from "./traceback.js";
-import { formatPython } from "./ruff.js";
+import { formatPython, lintPython } from "./ruff.js";
 
 const $ = (id) => document.getElementById(id);
 const setStatus = (text) => { $("status").textContent = text; };
@@ -115,6 +116,7 @@ const editor = createEditor($("editor"), {
     files.set(active, text);
     diagnostics.delete(active);
     scheduleSave(active);
+    scheduleLint();
   },
   keys: [
     { key: "Mod-Enter", run: () => (run(), true) },
@@ -127,7 +129,34 @@ const editor = createEditor($("editor"), {
     if (at) gotoLocation(at.file, at.line, at.col);
     else setStatus(`No definition of ${word} found`);
   },
+  onRename(word) {
+    const language = languageOf(active);
+    const to = prompt(`Rename ${word} in all ${language.name} files to:`, word)?.trim();
+    if (!to || to === word) return;
+    const error = renameError(word, to, language.id);
+    if (error) return setStatus(error);
+    const changed = new Map();
+    let count = 0;
+    for (const [name, content] of files) {
+      if (languageOf(name) !== language) continue;
+      const renamed = renameIn(content, word, to, language.id);
+      if (renamed.count) changed.set(name, renamed.text);
+      count += renamed.count;
+    }
+    applyEdits(changed);
+    setStatus(`Renamed ${count} ${count === 1 ? "use" : "uses"} of ${word} in ${changed.size} ${changed.size === 1 ? "file" : "files"}`);
+  },
 });
+
+/** Replace the content of the files in `changed` (name -> content), each
+ *  as one undoable edit. */
+function applyEdits(changed) {
+  for (const [name, content] of changed) {
+    files.set(name, content);
+    editor.replace(content, name);
+    save(name);
+  }
+}
 
 /** Open `file` (if it exists) with the cursor at `line` and `col`. */
 function gotoLocation(file, line, col) {
@@ -524,12 +553,7 @@ function setupFind() {
     const query = $("find-query").value;
     const count = find(files, query, findOptions()).length;
     if (!count || !confirm(`Replace ${count} ${count === 1 ? "match" : "matches"} of "${query}" in all files?`)) return;
-    for (const [name, content] of replaceAll(files, query, $("find-replacement").value, findOptions())) {
-      files.set(name, content);
-      if (name === active) editor.replace(content);
-      else editor.forget(name);
-      save(name);
-    }
+    applyEdits(replaceAll(files, query, $("find-replacement").value, findOptions()));
     renderFind();
   };
 }
@@ -725,6 +749,23 @@ async function formatPythonFile() {
     terminal.write("stderr", `${e.message ?? e}\n`);
     terminal.write("info", "Formatting failed.\n");
   }
+}
+
+let lintTimer = null;
+
+/** Lint the open Python file with Ruff, if installed (not asking), once
+ *  edits settle; its findings replace the diagnostics an edit cleared. */
+function scheduleLint() {
+  clearTimeout(lintTimer);
+  if (!active.endsWith(".py")) return;
+  lintTimer = setTimeout(async () => {
+    const [name, text] = [active, editor.text()];
+    if (!(await packs.isInstalled((await packs.available()).ruff))) return;
+    const list = await lintPython(text);
+    if (active !== name || editor.text() !== text) return;
+    diagnostics.set(name, list);
+    editor.setDiagnostics(list);
+  }, 500);
 }
 
 function stop() {
@@ -1080,8 +1121,12 @@ const models = async () => Object.entries(await packs.available()).filter(([, pa
 
 /** List the models in the AI suggestions menu. */
 async function listModels() {
-  for (const [id, pack] of await models()) {
-    $("ai").add(new Option(`${pack.title.replace(/^AI model: /, "")} (${mb(packs.size(pack))} MB)`, id));
+  // The recommended one first: right about twice as often in Rust as the
+  // smallest, on bench/.
+  const list = (await models()).sort(([, a], [, b]) => (b.recommended ?? false) - (a.recommended ?? false));
+  for (const [id, pack] of list) {
+    const name = `${pack.title.replace(/^AI model: /, "")} (${mb(packs.size(pack))} MB)`;
+    $("ai").add(new Option(pack.recommended ? `${name}, recommended` : name, id));
   }
 }
 

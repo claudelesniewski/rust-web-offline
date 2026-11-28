@@ -455,9 +455,17 @@ function setupFileActions() {
     const name = projects.get(project).replace(/[^\w-]+/g, "-").replace(/^-|-$/g, "") || "rust-files";
     download(`${name}-${new Date().toISOString().slice(0, 10)}.zip`, zip(list));
   };
-  $("docs").onchange = (e) => {
-    if (e.target.value) open(e.target.value, "_blank");
+  $("docs").onchange = async (e) => {
+    const option = e.target.selectedOptions[0];
     e.target.value = "";
+    if (!option.value) return;
+    open(option.value, "_blank");
+    // Online they come from the site; offline, only once installed.
+    const id = option.parentElement.dataset.pack;
+    const pack = (await packs.available())[id];
+    if (!(await packs.isInstalled(pack))) {
+      setStatus(`${option.parentElement.label} docs aren't saved for offline use: install ${pack.title} in Options → Toolchains.`);
+    }
   };
   const examples = $("examples");
   for (const name of Object.keys(EXAMPLES)) examples.add(new Option(name, name));

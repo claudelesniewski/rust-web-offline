@@ -1,25 +1,39 @@
-// Packs a subset of the Rust documentation for offline use: files sorted by
-// path and concatenated into ~8 MB chunks, each compressed with zstd. Pages
-// share most of their markup, so a chunk compresses ~20x, where compressing
-// each file alone gets ~9x. The service worker (web/docs.js) decompresses a
-// chunk when one of its pages is requested.
+// Packs a subset of the Rust or the Python documentation for offline use:
+// files sorted by path and concatenated into ~8 MB chunks, each compressed
+// with zstd. Pages share most of their markup, so a chunk compresses ~20x,
+// where compressing each file alone gets ~9x. The service worker
+// (web/docs.js) decompresses a chunk when one of its pages is requested.
 //
-//   node pack-docs.mjs <html-dir> <out-dir>
+//   node pack-docs.mjs <rust|python> <html-dir> <out-dir>
 // writes <out-dir>/<n>.<hash>.zst and <out-dir>/index.json.zst, which is
 // { chunks: [name], files: { path: [chunk, offset, length] } }. Among the
-// files packed is one more, types.json: see typeIndex.
+// Rust docs' files packed is one more, types.json: see typeIndex.
 import { createHash } from "node:crypto";
 import { mkdirSync, readdirSync, readFileSync, statSync, writeFileSync } from "node:fs";
 import { join, relative } from "node:path";
 import { constants, zstdCompressSync } from "node:zlib";
 
-/** What to include, relative to the docs' html directory. */
-const DIRS = ["book", "reference", "std", "core", "alloc", "static.files", "search.index", "type.impl", "trait.impl"];
-const EXCLUDE = [
-  /^core\/(arch|core_arch)\//, // SIMD intrinsics for every platform: two thirds of all pages
-  /^book\/(first|second|2018)-edition\//, // stubs pointing to the current edition
-  /^(book|reference)\/print\.html$/, // every chapter again, on one page
-];
+/** What to include of each, relative to the docs' html directory: the
+ *  top-level files and those in `dirs` (or in all), but not `exclude`. */
+export const SETS = {
+  rust: {
+    dirs: ["book", "reference", "std", "core", "alloc", "static.files", "search.index", "type.impl", "trait.impl"],
+    exclude: [
+      /^releases\./,
+      /^core\/(arch|core_arch)\//, // SIMD intrinsics for every platform: two thirds of all pages
+      /^book\/(first|second|2018)-edition\//, // stubs pointing to the current edition
+      /^(book|reference)\/print\.html$/, // every chapter again, on one page
+    ],
+  },
+  python: {
+    exclude: [
+      /^_sources\//, // each page's reStructuredText source
+      /^_downloads\//,
+      /^(whatsnew|c-api|extending)\//, // release notes, and C's
+      /^genindex-all\.html$/, // the index again, on one page
+    ],
+  },
+};
 const CHUNK = 8_000_000;
 
 const compress = (bytes) => zstdCompressSync(bytes, {
@@ -48,16 +62,15 @@ export function pack(files, chunkSize = CHUNK) {
   return { chunks, files: index };
 }
 
-/** The files of the docs at `root` that are served offline. */
-export function selectFiles(root) {
+/** The files of the docs at `root` that are served offline, of `set`. */
+export function selectFiles(root, { dirs, exclude }) {
   const walk = (dir) => readdirSync(dir).flatMap((name) => {
     const p = join(dir, name);
     return statSync(p).isDirectory() ? walk(p) : [relative(root, p).split("\\").join("/")];
   });
-  const topLevel = readdirSync(root).filter((n) => !statSync(join(root, n)).isDirectory() && !n.startsWith("releases."));
-  return [...topLevel, ...DIRS.flatMap((d) => walk(join(root, d)))]
-    .filter((p) => !EXCLUDE.some((re) => re.test(p)))
-    .sort();
+  const topLevel = readdirSync(root).filter((n) => !statSync(join(root, n)).isDirectory());
+  const all = dirs ? [...topLevel, ...dirs.flatMap((d) => walk(join(root, d)))] : walk(root);
+  return all.filter((p) => !exclude.some((re) => re.test(p))).sort();
 }
 
 /** The page of each type and trait in `paths`, for type-aware completion
@@ -78,10 +91,10 @@ export function typeIndex(paths) {
 }
 
 if (import.meta.url === `file://${process.argv[1]}`) {
-  const [root, out] = process.argv.slice(2);
-  const paths = selectFiles(root);
+  const [set, root, out] = process.argv.slice(2);
+  const paths = selectFiles(root, SETS[set]);
   const files = paths.map((path) => ({ path, bytes: readFileSync(join(root, path)) }));
-  files.push({ path: "types.json", bytes: Buffer.from(JSON.stringify(typeIndex(paths))) });
+  if (set === "rust") files.push({ path: "types.json", bytes: Buffer.from(JSON.stringify(typeIndex(paths))) });
   files.sort((a, b) => (a.path < b.path ? -1 : 1));
   const { chunks, files: index } = pack(files);
   mkdirSync(out, { recursive: true });

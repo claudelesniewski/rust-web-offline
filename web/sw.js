@@ -97,13 +97,18 @@ async function cached(req) {
   }
 }
 
-const serveDoc = createDocs({
+/** The docs, by the folder they're served from: Rust's, and Python's. */
+const DOCS = Object.entries({
+  "docs/": "https://doc.rust-lang.org/nightly/",
+  "python-docs/": "https://docs.python.org/3.14/",
+}).map(([dir, online]) => [dir, createDocs({
   read: async (name) => {
-    const res = (await cached(`docs/${name}`)) ?? (await fetch(`docs/${name}`));
+    const res = (await cached(dir + name)) ?? (await fetch(dir + name));
     return new Uint8Array(await res.arrayBuffer());
   },
   decompress,
-});
+  online,
+})]);
 
 self.addEventListener("fetch", (event) => {
   const req = event.request;
@@ -113,7 +118,8 @@ self.addEventListener("fetch", (event) => {
   const path = url.pathname.slice(SCOPE.length);
   event.respondWith((async () => {
     // Pages of the docs, but not the packed chunks they come from.
-    if (path.startsWith("docs/") && !path.endsWith(".zst")) return isolated(await serveDoc(path.slice(5)));
+    const [dir, serveDoc] = DOCS.find(([d]) => path.startsWith(d)) ?? [];
+    if (serveDoc && !path.endsWith(".zst")) return isolated(await serveDoc(path.slice(dir.length)));
     // Any other page in scope is the app: offline, the cached one.
     const res = (await cached(req))
       ?? (req.mode === "navigate" ? await (await caches.open(VERSION)).match("./") : undefined)

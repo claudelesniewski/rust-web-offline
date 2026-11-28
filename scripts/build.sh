@@ -4,6 +4,7 @@
 #   vendor/     entry points for npm packages, bundled by esbuild
 #   toolchain   downloaded by fetch-toolchain.sh
 #   docs        the Rust docs, packed by pack-docs.mjs
+#   python-docs the Python docs, likewise
 #   lm          the optional AI completion: wllama (llama.cpp in wasm), and
 #               where to get the model; downloaded only when turned on
 # sw.js is then stamped with the list of files to precache for offline use.
@@ -60,20 +61,26 @@ cat > "$SITE/lm/index.json" <<JSON
 }
 JSON
 
-# Packing the docs takes a minute, so the result is cached until the docs
-# or the packer change.
-key="$(cat "$TC/rust-docs.tar.xz" scripts/pack-docs.mjs | sha256sum | cut -c1-12)"
-DOCS="build/cache/docs-$key"
-if [ ! -d "$DOCS" ]; then
-  rm -rf build/cache/docs-* build/cache/docs-html
-  mkdir -p build/cache/docs-html
-  tar -xJf "$TC/rust-docs.tar.xz" -C build/cache/docs-html --strip-components=6 \
-    rust-docs-nightly-x86_64-unknown-linux-gnu/rust-docs/share/doc/rust/html
-  node scripts/pack-docs.mjs build/cache/docs-html "$DOCS.part"
-  rm -rf build/cache/docs-html
-  mv "$DOCS.part" "$DOCS"
-fi
-cp -R "$DOCS" "$SITE/docs"
+# Packing docs takes a minute, so the result is cached until the docs or
+# the packer change.
+#   pack_docs <set> <archive> <folder in the site> <tar's options and path>
+pack_docs() {
+  local set="$1" archive="$2" dest="$3"
+  shift 3
+  local out="build/cache/$set-docs-$(cat "$archive" scripts/pack-docs.mjs | sha256sum | cut -c1-12)"
+  if [ ! -d "$out" ]; then
+    rm -rf "build/cache/$set-docs-"* build/cache/docs-html
+    mkdir -p build/cache/docs-html
+    tar -xf "$archive" -C build/cache/docs-html "$@"
+    node scripts/pack-docs.mjs "$set" build/cache/docs-html "$out.part"
+    rm -rf build/cache/docs-html
+    mv "$out.part" "$out"
+  fi
+  cp -R "$out" "$SITE/$dest"
+}
+pack_docs rust "$TC/rust-docs.tar.xz" docs --strip-components=6 \
+  rust-docs-nightly-x86_64-unknown-linux-gnu/rust-docs/share/doc/rust/html
+pack_docs python "$TC/python-docs.tar.bz2" python-docs --strip-components=1 python-3.14.2-docs-html
 
 node scripts/stamp-sw.mjs "$SITE"
 du -sh "$SITE"

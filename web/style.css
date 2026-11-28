@@ -144,6 +144,16 @@ a.loc:hover { text-decoration: underline; color: #7cc4ff; }
 #sync-dialog .hint, #toolchains-dialog .hint { color: var(--muted); font-size: 13px; margin: 6px 0; }
 #sync-dialog .buttons, #find-dialog .buttons, #toolchains-dialog .buttons { display: flex; gap: 8px; justify-content: flex-end; }
 #sync-status { min-height: 1.2em; }
+#sync-local { margin-right: auto; }
+/* Reviewing changes: the files, and the selected one's diff. */
+#sync-dialog.reviewing { width: min(1100px, calc(100vw - 32px)); }
+#sync-changes { list-style: none; margin: 0 0 8px; padding: 0; max-height: 8em; overflow: auto; }
+#sync-changes li { cursor: pointer; padding: 2px 6px; border-radius: 4px; }
+#sync-changes li.selected { background: var(--bg); }
+#sync-changes li::after { content: attr(data-status); margin-left: 8px; color: var(--muted); font-size: 13px; }
+#sync-changes li[data-status="added"]::after { color: #7ec699; }
+#sync-changes li[data-status="deleted"]::after { color: #e57373; }
+#sync-diff { max-height: 60vh; overflow: auto; border: 1px solid var(--border); margin-bottom: 8px; }
 #sync-status a { color: #7cc4ff; }
 button.link { border: 0; background: none; padding: 0; color: #7cc4ff; text-decoration: underline; font-size: inherit; }
 #find-dialog { width: min(640px, calc(100vw - 32px)); }

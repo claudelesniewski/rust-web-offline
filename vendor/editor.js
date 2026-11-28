@@ -12,6 +12,17 @@ import { oneDark } from "@codemirror/theme-one-dark";
 import { pythonCompletions, rustCompletions } from "./completion.js";
 import { acceptGhost, dropGhost, ghostText } from "./ghost.js";
 import { Vim, vim } from "@replit/codemirror-vim";
+import { MergeView } from "@codemirror/merge";
+
+/** The language of file `name`, by its extension: Rust, or Python for .py. */
+const languageFor = (name) => (name.endsWith(".py") ? python() : rust());
+
+/** A read-only side-by-side diff of file `name`, from text `before` to
+ *  `after`, in `parent`; returns it, to destroy() it. */
+export function createDiffView(parent, before, after, name) {
+  const extensions = [basicSetup, languageFor(name), oneDark, EditorState.readOnly.of(true), EditorView.editable.of(false)];
+  return new MergeView({ a: { doc: before, extensions }, b: { doc: after, extensions }, parent, collapseUnchanged: {} });
+}
 
 /** A hover's card: its title (a signature), its body, and a link to its docs. */
 function hoverCard({ title, body, link }) {
@@ -100,8 +111,7 @@ export function createEditor(parent, { onChange, keys = [], onSave = () => {}, o
     tooltips({ parent: document.body }),
     basicSetup,
     indentUnit.of("    "),
-    // The language, by the file's name: Rust, or Python for .py.
-    name.endsWith(".py") ? python() : rust(),
+    languageFor(name),
     rustLanguage.data.of({
       autocomplete: ifNotIn(["String", "RawString", "Char", "LineComment", "BlockComment"],
         rustCompletions((...args) => members?.(...args) ?? null)),

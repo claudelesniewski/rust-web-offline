@@ -110,6 +110,7 @@
 </dialog>
 <dialog id="sync-dialog">
   <h3>Sync with GitHub</h3>
+  <div id="sync-form">
   <p class="hint">This project's files are in a folder of a repository. With Rust files, it is a Cargo
     package: they are the <code>.rs</code> files under <code>src/</code> (a <code>Cargo.toml</code> is added if
     there is none), Python files too. Otherwise, they are the folder's <code>.py</code> files.</p>
@@ -123,9 +124,20 @@
   <label>Commit message <input id="sync-message" value="Update from Rust Offline"></label>
   <p id="sync-status" role="status"></p>
   <div class="buttons">
-    <button id="sync-pull">Pull</button>
-    <button id="sync-push" class="primary">Push</button>
+    <button id="sync-local" class="link">Changes since last sync</button>
+    <button id="sync-pull">Pull…</button>
+    <button id="sync-push" class="primary">Push…</button>
     <button id="sync-close">Close</button>
+  </div>
+  </div>
+  <div id="sync-review" hidden>
+    <p id="sync-review-title"></p>
+    <ul id="sync-changes"></ul>
+    <div id="sync-diff"></div>
+    <div class="buttons">
+      <button id="sync-back">Back</button>
+      <button id="sync-confirm" class="primary"></button>
+    </div>
   </div>
 </dialog>
 <dialog id="find-dialog">

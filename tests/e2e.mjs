@@ -547,14 +547,22 @@ try {
     await dialog();
     await page.locator("#sync-repo").fill("me/code");
     await page.locator("#sync-token").fill("github_pat_test");
-    await page.locator("#sync-push").click();
+    // Push and Pull show what they would change first, to confirm.
+    const review = async (button) => {
+      await page.locator(button).click();
+      await page.locator("#sync-review:not([hidden])").waitFor();
+      return page.locator("#sync-changes li").evaluateAll((lis) => lis.map((li) => `${li.dataset.name} ${li.dataset.status}`));
+    };
+    assert.deepEqual(await review("#sync-push"), ["main.rs added"]);
+    await page.locator("#sync-confirm").click();
     await page.locator("#sync-status", { hasText: "Pushed as commit" }).waitFor();
     assert.deepEqual(Object.keys(github.files()).sort(), ["Cargo.toml", "README.md", "src/main.rs"]);
     assert.match(github.files()["Cargo.toml"], /^name = "synced"$/m);
 
     // Changed on GitHub: pull it, and run it.
     github.commitFiles({ "src/main.rs": 'fn main() { println!("from GitHub"); }\n', "src/extra.rs": "pub fn e() {}\n" });
-    await page.locator("#sync-pull").click();
+    assert.deepEqual(await review("#sync-pull"), ["extra.rs added", "main.rs modified"]);
+    await page.locator("#sync-confirm").click();
     await page.locator("#sync-status", { hasText: "Pulled 2 files" }).waitFor();
     await page.locator("#sync-close").click();
     assert.deepEqual(await page.locator("#file-list li").allInnerTexts(), ["extra.rs", "main.rs"]);
@@ -565,7 +573,12 @@ try {
     await dialog();
     assert.equal(await page.locator("#sync-repo").inputValue(), "me/code");
     await page.locator("#sync-message").fill("Say where from");
-    await page.locator("#sync-push").click();
+    assert.deepEqual(await review("#sync-push"), ["main.rs modified"]);
+    // The diff, side by side: GitHub's line, and this one, changed.
+    await page.locator("#sync-diff .cm-merge-a .cm-changedText", { hasText: "GitHub" }).waitFor();
+    await page.locator("#sync-diff .cm-merge-b .cm-changedText", { hasText: "here" }).waitFor();
+    assert.match(await page.locator("#sync-diff .cm-merge-b").innerText(), /println!\("from here"\);/);
+    await page.locator("#sync-confirm").click();
     await page.locator("#sync-status", { hasText: "Pushed as commit" }).waitFor();
     assert.equal(github.files()["src/main.rs"], 'fn main() { println!("from here"); }\n');
 
@@ -574,6 +587,13 @@ try {
     await page.locator("#sync-close").click();
     await setCode("main.rs", "fn main() {}\n");
     await dialog();
+    // What changed here since, offline too, in the same view.
+    await page.locator("#sync-local").click();
+    assert.deepEqual(await page.locator("#sync-changes li").allInnerTexts(), ["main.rs"]);
+    assert.equal(await page.locator("#sync-changes li").getAttribute("data-status"), "modified");
+    await page.locator("#sync-diff .cm-merge-a .cm-changedText", { hasText: "here" }).waitFor();
+    assert.ok(await page.locator("#sync-confirm").isHidden());
+    await page.locator("#sync-back").click();
     await page.locator("#sync-push").click();
     await page.locator("#sync-status", { hasText: "pull first" }).waitFor();
     await page.locator("#sync-close").click();

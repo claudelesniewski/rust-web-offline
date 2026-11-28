@@ -1,6 +1,6 @@
 // The page: files, editor, terminal, and the service worker that makes it
 // all work offline.
-import { createEditor } from "./editor.js";
+import { createDiffView, createEditor } from "./editor.js";
 import { fixOnLine, parseDiagnostics } from "./diagnostics.js";
 import { Terminal } from "./terminal.js";
 import { EXAMPLES } from "./examples.js";
@@ -339,15 +339,60 @@ async function withGitHub(fn) {
   // The same place as before: keep what was synced.
   if (old.repo === link.repo && old.branch === link.branch && old.dir === link.dir) Object.assign(link, old);
   await store.setSetting(linkKey(), link);
+  if (!navigator.onLine) return syncStatus("You're offline: pushing and pulling need the network, to read the branch.");
+  await syncing(() => fn(createGitHub({ token, repo }), link));
+}
+
+/** Run `fn()` with Pull and Push off; reports errors. */
+async function syncing(fn) {
   const buttons = [$("sync-pull"), $("sync-push")];
   buttons.forEach((b) => (b.disabled = true));
   try {
-    await fn(createGitHub({ token, repo }), link);
+    await fn();
   } catch (e) {
     syncStatus(e.message);
   } finally {
     buttons.forEach((b) => (b.disabled = false));
   }
+}
+
+let diffView = null;
+
+/** Show the changes `list` (as sync.changes()) under `title` in the sync
+ *  dialog, each file's diff when it is selected; then go on with `confirm`
+ *  ({ label, run }), or, without one, just look. */
+function review(title, list, confirm) {
+  $("sync-form").hidden = true;
+  $("sync-review").hidden = false;
+  $("sync-dialog").classList.add("reviewing");
+  $("sync-review-title").textContent = `${title}: ${list.length ? "" : "none."}`;
+  const show = (change) => {
+    diffView?.destroy();
+    for (const li of $("sync-changes").children) li.classList.toggle("selected", li.dataset.name === change.name);
+    diffView = createDiffView($("sync-diff"), change.before, change.after, change.name);
+  };
+  $("sync-changes").replaceChildren(...list.map((change) => {
+    const li = document.createElement("li");
+    Object.assign(li.dataset, { name: change.name, status: change.status });
+    li.textContent = change.name;
+    li.onclick = () => show(change);
+    return li;
+  }));
+  if (list.length) show(list[0]);
+  $("sync-confirm").hidden = !confirm;
+  $("sync-confirm").textContent = confirm?.label ?? "";
+  $("sync-confirm").onclick = () => {
+    endReview();
+    syncing(confirm.run);
+  };
+}
+
+function endReview() {
+  diffView?.destroy();
+  diffView = null;
+  $("sync-review").hidden = true;
+  $("sync-form").hidden = false;
+  $("sync-dialog").classList.remove("reviewing");
 }
 
 /** Make the project's files `next` ({ name: content }). */
@@ -370,30 +415,48 @@ async function replaceFiles(next) {
 function setupSync() {
   $("github-project").onclick = openSync;
   $("sync-close").onclick = () => $("sync-dialog").close();
+  $("sync-dialog").onclose = endReview;
+  $("sync-back").onclick = endReview;
   $("sync-forget").onclick = async () => {
     await store.setSetting("github-token", "");
     $("sync-token").placeholder = "github_pat_…";
     syncStatus("The token is forgotten.");
   };
+  $("sync-local").onclick = async () => {
+    const link = (await store.getSetting(linkKey())) ?? {};
+    if (!link.head) return syncStatus("Not synced yet: there is nothing to compare with.");
+    review(`Changed here since commit ${short(link.head)}`, sync.changes(link.snapshot, Object.fromEntries(files)));
+  };
+  // Pull and Push show what they would change first, to confirm.
   $("sync-pull").onclick = () => withGitHub(async (gh, link) => {
-    const changed = link.head ? sync.changedSince(files, link.snapshot) : true;
-    if (changed && !confirm(`Pulling replaces this project's files with those in ${link.repo}` +
-      (link.head ? ", and you have changes here not pushed." : ".") + " Pull?")) return;
-    syncStatus("Pulling…");
+    syncStatus("Reading the branch…");
     const { head, files: remote } = await sync.pull(gh, link);
     const count = Object.keys(remote).length;
     if (!count) return syncStatus(`There are no ${LANGUAGES.map((l) => l.ext).join(" or ")} files in ${link.dir || "/"} there.`);
-    await replaceFiles(remote);
-    await store.setSetting(linkKey(), { ...link, head, snapshot: remote });
-    syncStatus(`Pulled ${count} file${count === 1 ? "" : "s"} from commit ${short(head)}.`);
+    const pull = async () => {
+      await replaceFiles(remote);
+      await store.setSetting(linkKey(), { ...link, head, snapshot: remote });
+      syncStatus(`Pulled ${count} file${count === 1 ? "" : "s"} from commit ${short(head)}.`);
+    };
+    const list = sync.changes(Object.fromEntries(files), remote);
+    if (!list.length) return pull();
+    const unpushed = link.head && sync.changedSince(files, link.snapshot);
+    review(`Pulling commit ${short(head)} changes these files here` +
+      (unpushed ? ", and you have changes here not pushed" : ""), list, { label: "Pull", run: pull });
   });
   $("sync-push").onclick = () => withGitHub(async (gh, link) => {
-    syncStatus("Pushing…");
-    const message = $("sync-message").value.trim() || "Update from Rust Offline";
-    const head = await sync.push(gh, link, files, { message, project: projects.get(project) });
-    await store.setSetting(linkKey(), { ...link, head, snapshot: Object.fromEntries(files) });
-    syncStatus(head === link.head ? "Nothing to push: GitHub has the same files."
-      : `Pushed as commit ${short(head)}.`, `https://github.com/${link.repo}/commit/${head}`);
+    syncStatus("Reading the branch…");
+    const push = async () => {
+      syncStatus("Pushing…");
+      const message = $("sync-message").value.trim() || "Update from Rust Offline";
+      const head = await sync.push(gh, link, files, { message, project: projects.get(project) });
+      await store.setSetting(linkKey(), { ...link, head, snapshot: Object.fromEntries(files) });
+      syncStatus(head === link.head ? "Nothing to push: GitHub has the same files."
+        : `Pushed as commit ${short(head)}.`, `https://github.com/${link.repo}/commit/${head}`);
+    };
+    const list = await sync.outgoing(gh, link, files);
+    if (!list.length) return push();
+    review(`Pushing changes these files in ${link.repo}`, list, { label: "Push", run: push });
   });
 }
 

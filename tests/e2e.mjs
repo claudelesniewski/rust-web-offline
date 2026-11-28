@@ -206,6 +206,29 @@ try {
     await setCode("main.rs", 'mod geometry;\nfn main() { println!("{}", geometry::double(21)); }\n');
   });
 
+  await step("F2 renames a name in all files, not in strings, each file undoably", async () => {
+    await setCode("main.rs", 'mod geometry;\nfn main() { println!("double: {}", geometry::double(21)); }\n');
+    // Into `double`, from the end of `geometry::double(21)); }`.
+    await page.keyboard.press("ArrowUp");
+    await page.keyboard.press("End");
+    for (let i = 0; i < 10; i++) await page.keyboard.press("ArrowLeft");
+    const asked = new Promise((resolve) => page.once("dialog", (d) => { resolve(d.message()); d.accept("twice"); }));
+    await page.keyboard.press("F2");
+    assert.equal(await asked, "Rename double in all Rust files to:");
+    await page.locator("#status", { hasText: "Renamed 2 uses of double in 2 files" }).waitFor();
+    assert.match(await page.locator(".cm-content").innerText(), /println!\("double: \{\}", geometry::twice\(21\)\)/);
+    assert.match(await run(), /^double: 42$/m);
+    await page.locator(".cm-content").click();
+    await page.keyboard.press("ControlOrMeta+z");
+    assert.match(await page.locator(".cm-content").innerText(), /"double: \{\}", geometry::double\(21\)/);
+    await page.locator('#file-list li[data-name="geometry.rs"]').click();
+    assert.match(await page.locator(".cm-content").innerText(), /^pub fn twice\(/);
+    await page.locator(".cm-content").click();
+    await page.keyboard.press("ControlOrMeta+z");
+    assert.match(await page.locator(".cm-content").innerText(), /^pub fn double\(/);
+    await setCode("main.rs", 'mod geometry;\nfn main() { println!("{}", geometry::double(21)); }\n');
+  });
+
   await step("hover docs for Rust: a type's from the offline docs, a method's after a dot", async () => {
     await setCode("main.rs", "fn main() {\n    let mut v: Vec<i32> = Vec::new();\n    v.push(1);\n}\n");
     const hoverOn = async (word, nth = 0) => {
@@ -320,6 +343,8 @@ try {
   await step("AI suggestions", async () => {
     page.once("dialog", (d) => d.accept()); // "AI model: SmolLM2-135M isn't installed. Download it?"
     await page.locator("#options summary").click();
+    // The recommended model first, after Off.
+    assert.equal(await page.locator("#ai option").nth(1).textContent(), "Qwen2.5-Coder-0.5B (531 MB), recommended");
     await page.locator("#ai").selectOption("model-smollm2-135m");
     await page.locator("#options summary").click();
     await aiReady(page);
@@ -707,6 +732,19 @@ try {
     await page.locator("#output", { hasText: "Formatting failed." }).waitFor();
     assert.equal((await page.locator(".cm-content").innerText()).trimEnd(), "def half(:");
     await setCode("calc.py", "def half(x):\n    return x / 0\n");
+  });
+
+  await step("Ruff lints Python as you type, once installed", async () => {
+    await setCode("calc.py", "def half(x):\n    return y / 2\n");
+    await page.locator(".cm-lintRange-warning").waitFor({ timeout: 10_000 });
+    assert.equal(await page.locator(".cm-lintRange-warning").innerText(), "y");
+    // A syntax error hides the rules' findings.
+    await setCode("calc.py", "def half(:\n    return y\n");
+    await page.locator(".cm-lintRange-error").waitFor({ timeout: 10_000 });
+    assert.equal(await page.locator(".cm-lintRange-error").innerText(), ":");
+    assert.equal(await page.locator(".cm-lintRange-warning").count(), 0);
+    await setCode("calc.py", "def half(x):\n    return x / 0\n");
+    await page.locator(".cm-lintRange-error").waitFor({ state: "detached" });
   });
 
   await step("Rust is a toolchain too: removed, then installed again when needed", async () => {

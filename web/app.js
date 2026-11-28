@@ -17,7 +17,8 @@ import { find, replaceAll } from "./find.js";
 import { rank } from "./palette.js";
 import { renameError, renameIn } from "./rename.js";
 import * as packs from "./packs.js";
-import { LANGUAGES, findLocations, languageOf, validName, withExtension } from "./languages.js";
+import { LANGUAGES, NOTEBOOK, findLocations, languageOf, validName, withExtension } from "./languages.js";
+import { createNotebookView } from "./notebook-view.js";
 import { parseTraceback } from "./traceback.js";
 import { formatPython, lintPython } from "./ruff.js";
 
@@ -149,6 +150,18 @@ const editor = createEditor($("editor"), {
   },
 });
 
+const isNotebook = (name) => name.endsWith(NOTEBOOK);
+
+/** The open file, when it's a notebook: in place of the editor. */
+const notebook = createNotebookView($("notebook"), {
+  onChange(text) {
+    files.set(active, text);
+    scheduleSave(active);
+  },
+  runCell,
+  restart: restartKernel,
+});
+
 /** Replace the content of the files in `changed` (name -> content), each
  *  as one undoable edit. */
 function applyEdits(changed) {
@@ -210,20 +223,25 @@ function renderFiles() {
 }
 
 function openFile(name) {
-  if (active !== null && files.has(active)) editor.save(active);
+  if (active !== null && files.has(active) && !isNotebook(active)) editor.save(active);
   active = name;
-  editor.open(name, files.get(name));
-  editor.setDiagnostics(diagnostics.get(name) ?? []);
-  // A Python file is linted when opened too, unless a run's findings show.
-  if (!diagnostics.has(name)) scheduleLint();
+  $("editor").hidden = isNotebook(name);
+  $("notebook").hidden = !isNotebook(name);
+  if (isNotebook(name)) notebook.open(files.get(name));
+  else {
+    editor.open(name, files.get(name));
+    editor.setDiagnostics(diagnostics.get(name) ?? []);
+    // A Python file is linted when opened too, unless a run's findings show.
+    if (!diagnostics.has(name)) scheduleLint();
+  }
   store.setSetting(`active:${project}`, name);
   renderFiles();
 }
 
-/** A name like `base` that no file has yet: base.rs, base_2.rs, … (or .py) */
+/** A name like `base` that no file has yet: base.rs, base_2.rs, … (or .py, .ipynb) */
 function freeName(base) {
   const first = withExtension(base);
-  const { ext } = languageOf(first);
+  const ext = first.slice(first.lastIndexOf("."));
   let name = first;
   for (let i = 2; files.has(name); i++) name = `${first.slice(0, -ext.length)}_${i}${ext}`;
   return name;
@@ -440,7 +458,7 @@ function download(name, blob) {
 function setupFileActions() {
   $("new-file").onclick = () => {
     const name = askName("New file name:", freeName("untitled"));
-    if (name) addFile(name, "fn main() {\n    \n}\n");
+    if (name) addFile(name, isNotebook(name) ? "" : "fn main() {\n    \n}\n");
   };
   $("rename-file").onclick = async () => {
     const from = active;
@@ -784,6 +802,7 @@ function rustReady() {
 }
 
 function run() {
+  if (isNotebook(active)) return notebook.runAll();
   if (active.endsWith(".py")) return runPython();
   if (current !== null || !rustReady()) return;
   flushSaves();
@@ -807,7 +826,7 @@ let tests = null;
  *  file. Each test's result shows as it comes (showTest), then a summary. */
 async function runTests() {
   if (current !== null) return;
-  const isPython = active.endsWith(".py");
+  const isPython = !active.endsWith(".rs");
   if (isPython ? !(await ensurePack("python")) : !rustReady()) return;
   flushSaves();
   current = nextId++;
@@ -842,6 +861,7 @@ function endTests(m) {
 }
 
 function format() {
+  if (isNotebook(active)) return;
   if (active.endsWith(".py")) return formatPythonFile();
   if (current !== null || !rustReady()) return;
   current = nextId++;
@@ -890,6 +910,8 @@ function stop() {
     // Python can't be stopped from outside: start it afresh next time.
     python.terminate();
     python = null;
+    cellRun?.({ type: "stopped" });
+    notebook.stopped();
     terminal.write("info", "\nStopped.\n");
     return finishRequest();
   }
@@ -907,6 +929,8 @@ let pythonStdin = null;
 /** Lines typed before the program asked for them; whether it is asking. */
 const pythonQueue = [];
 let pythonWaiting = false;
+/** While a notebook's cell runs: what follows the worker's messages of it. */
+let cellRun = null;
 
 /** Give the waiting program `line`, or the end of its input (null). */
 function sendStdin(line) {
@@ -972,12 +996,15 @@ function startPython() {
       pythonRequests.delete(m.id);
     } else if (m.id !== current) {
       // From a run that was stopped.
+    } else if (m.type === "stdin") {
+      if (cellRun) terminal.write("info", "The cell reads a line of input: type it here.\n");
+      if (pythonQueue.length) sendStdin(pythonQueue.shift());
+      else pythonWaiting = true;
+    } else if (cellRun) {
+      cellRun(m);
     } else if (m.type === "output") {
       terminal.write(m.stream, m.text);
       if (m.stream === "stderr") pythonErrors += m.text;
-    } else if (m.type === "stdin") {
-      if (pythonQueue.length) sendStdin(pythonQueue.shift());
-      else pythonWaiting = true;
     } else if (m.type === "test") {
       showTest(m);
     } else if (m.type === "done" && tests) {
@@ -1010,6 +1037,41 @@ async function runPython() {
   if (!python) startPython();
   const list = [...files].map(([name, content]) => ({ name, content }));
   python.postMessage({ type: "run", id: current, files: list, main: active });
+}
+
+/** Run notebook cell `code` (its execution count `count`) in the Python
+ *  worker's kernel, which keeps its names until the worker ends; see
+ *  createNotebookView for `onOutput` and what it resolves with. */
+async function runCell(code, count, onOutput) {
+  if (current !== null || !(await ensurePack("python"))) return null;
+  flushSaves();
+  current = nextId++;
+  runningPython = true;
+  pythonQueue.length = 0;
+  pythonWaiting = false;
+  setBusy(true);
+  terminal.setRunning(true);
+  if (!python) startPython();
+  const list = [...files].map(([name, content]) => ({ name, content }));
+  return new Promise((resolve) => {
+    cellRun = (m) => {
+      if (m.type === "output" || m.type === "image") return onOutput(m);
+      cellRun = null;
+      finishRequest();
+      resolve(m.type === "done" ? m
+        : m.type === "error" ? { result: null, error: { ename: "Error", evalue: m.text, traceback: [m.text] } }
+          : null);
+    };
+    python.postMessage({ type: "cell", id: current, files: list, code, count });
+  });
+}
+
+/** Start the notebooks' kernel afresh: a new worker, at the next run. */
+function restartKernel() {
+  if (runningPython) return stop();
+  python?.terminate();
+  python = null;
+  terminal.write("info", "Kernel restarted.\n");
 }
 
 // ---- Toolchains (packs) ------------------------------------------------------

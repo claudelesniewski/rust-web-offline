@@ -3,10 +3,10 @@ import { test } from "node:test";
 import { languageOf, validName, withExtension } from "../../web/languages.js";
 
 test("file names are paths of module names ending in .rs or .py", () => {
-  for (const ok of ["main.rs", "my_mod.rs", "_x.rs", "A1.rs", "geometry/shapes.rs", "a/b/c.rs", "hello.py", "pkg/util.py"]) {
+  for (const ok of ["main.rs", "my_mod.rs", "_x.rs", "A1.rs", "geometry/shapes.rs", "a/b/c.rs", "hello.py", "pkg/util.py", "notes.ipynb", "nb/demo.ipynb"]) {
     assert.ok(validName(ok), ok);
   }
-  for (const bad of ["main", "1x.rs", "my-mod.rs", "a b.rs", "../x.rs", "/x.rs", "a//b.rs", "a/.rs", ".rs", "x.rs.txt", "1a/b.rs", "x.pyc", "my-script.py"]) {
+  for (const bad of ["main", "1x.rs", "my-mod.rs", "a b.rs", "../x.rs", "/x.rs", "a//b.rs", "a/.rs", ".rs", "x.rs.txt", "1a/b.rs", "x.pyc", "my-script.py", "my notes.ipynb"]) {
     assert.ok(!validName(bad), bad);
   }
 });
@@ -17,4 +17,5 @@ test("a file's language is by its extension; .rs is added if it has none", () =>
   assert.equal(languageOf("notes.txt"), undefined);
   assert.equal(withExtension("util"), "util.rs");
   assert.equal(withExtension("util.py"), "util.py");
+  assert.equal(withExtension("notes.ipynb"), "notes.ipynb");
 });

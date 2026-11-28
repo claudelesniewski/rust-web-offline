@@ -1,5 +1,18 @@
 // Starter programs, offered in the Examples menu. Each becomes a new file.
 
+/** A Jupyter notebook's text, of `cells`: [type, source]. */
+function notebook(cells) {
+  return `${JSON.stringify({
+    cells: cells.map(([type, source], i) => ({
+      cell_type: type, id: `cell${i + 1}`, metadata: {}, source: source.split(/(?<=\n)/),
+      ...(type === "code" ? { execution_count: null, outputs: [] } : {}),
+    })),
+    metadata: { kernelspec: { display_name: "Python 3", language: "python", name: "python3" } },
+    nbformat: 4,
+    nbformat_minor: 5,
+  }, null, 1)}\n`;
+}
+
 export const EXAMPLES = {
   "hello.rs": `fn main() {
     println!("Hello, world!");
@@ -100,6 +113,13 @@ name = input("What's your name? ")
 squares = [n * n for n in range(1, 6)]
 print(f"Hello, {name}! Squares: {squares}, sum {sum(squares)}")
 `,
+  "notebook.ipynb": notebook([
+    ["markdown", "# A notebook\n\nIts cells run in one Python session, the *kernel*: what one defines, the next can use. "
+      + "**Shift-Enter** runs a cell and moves on; double-click this text to edit it."],
+    ["code", 'print("Hello from a notebook!")\nx = 2'],
+    ["code", "# A cell's last expression is its result.\nx * 21"],
+    ["code", 'name = input("What\'s your name? ")\nf"Hello, {name}!"'],
+  ]),
   "modules.rs": `// Other files are modules: \`mod geometry;\` uses geometry.rs.
 // Create a file named geometry.rs containing:
 //     pub fn double(x: i32) -> i32 { x * 2 }

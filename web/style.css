@@ -90,6 +90,26 @@ main.hide-files #files, main.hide-files #files-handle { display: none; }
 #editor .cm-editor { height: 100%; }
 #editor .cm-scroller { font-family: ui-monospace, "Cascadia Code", Menlo, monospace; font-size: 14px; }
 
+/* A notebook (web/notebook-view.js), in the editor's place. */
+#notebook { grid-area: editor; min-height: 0; display: flex; flex-direction: column; }
+#notebook[hidden] { display: none; }
+.nb-toolbar { display: flex; flex-wrap: wrap; gap: 4px; padding: 6px; border-bottom: 1px solid var(--border); }
+.nb-toolbar button { padding: 2px 8px; font-size: 12px; }
+.nb-cells { flex: 1; overflow: auto; padding: 8px 12px 40vh; }
+.cell { border-left: 3px solid transparent; padding: 4px 8px; margin-bottom: 6px; }
+.cell.selected { border-left-color: var(--accent); }
+.cell-head { display: flex; align-items: center; gap: 6px; font: 12px ui-monospace, monospace; color: var(--muted); }
+.cell-run { padding: 0 6px; font-size: 11px; }
+.cell-input .cm-editor { border: 1px solid var(--border); border-radius: 3px; }
+.cell-input .cm-scroller { font-family: ui-monospace, "Cascadia Code", Menlo, monospace; font-size: 14px; }
+.cell-outputs pre { margin: 4px 0 0; font: 13px/1.4 ui-monospace, Menlo, monospace; white-space: pre-wrap; word-break: break-word; }
+.cell-outputs .out-stderr, .cell-outputs .out-error { color: #e06c75; }
+.cell-outputs img { display: block; max-width: 100%; margin-top: 4px; background: #fff; }
+.markdown-body { cursor: default; line-height: 1.5; }
+.markdown-body > :first-child { margin-top: 0; }
+.markdown-body code { font-family: ui-monospace, monospace; background: var(--panel); padding: 0 3px; }
+.nb-error { padding: 12px; color: var(--muted); }
+
 #terminal {
   grid-area: terminal; display: flex; flex-direction: column; min-height: 0;
   border-top: 1px solid var(--border); background: #16181d;

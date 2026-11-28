@@ -34,6 +34,10 @@ export const LANGUAGES = [
     ai: { repo: "python-examples", path: (name) => name, comment: "#", quotes: "\"'" } },
 ];
 
+/** A Jupyter notebook's extension: a project's file too, run cell by cell
+ *  in Python (web/notebook.js), though not a module. */
+export const NOTEBOOK = ".ipynb";
+
 /** The places in the project that `text` names, as any language does. */
 export const findLocations = (text) => LANGUAGES.flatMap((l) => l.findLocations(text)).sort((a, b) => a.index - b.index);
 
@@ -41,12 +45,13 @@ export const findLocations = (text) => LANGUAGES.flatMap((l) => l.findLocations(
 export const languageOf = (name) => LANGUAGES.find((l) => name.endsWith(l.ext));
 
 /** Is `name` acceptable for a file: a path of module names (folders, then
- *  the file) with a known extension, so that `mod name;` or `import name`
- *  can refer to it. */
+ *  the file) with a known extension (or a notebook's), so that `mod name;`
+ *  or `import name` can refer to it. */
 export function validName(name) {
   const m = /^((?:[A-Za-z_][A-Za-z0-9_]*\/)*[A-Za-z_][A-Za-z0-9_]*)(\.\w+)$/.exec(name);
-  return Boolean(m && LANGUAGES.some((l) => l.ext === m[2]));
+  return Boolean(m && (m[2] === NOTEBOOK || LANGUAGES.some((l) => l.ext === m[2])));
 }
 
-/** `name` with a known extension: as it is, or with `.rs` added. */
-export const withExtension = (name) => (languageOf(name) ? name : `${name}${LANGUAGES[0].ext}`);
+/** `name` with a known extension (or a notebook's): as it is, or with `.rs`
+ *  added. */
+export const withExtension = (name) => (languageOf(name) || name.endsWith(NOTEBOOK) ? name : `${name}${LANGUAGES[0].ext}`);

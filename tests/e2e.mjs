@@ -767,6 +767,69 @@ try {
     await page.locator(".cm-lintRange-error").waitFor({ state: "detached" });
   });
 
+  await step("Jupyter notebooks: cells share a kernel; outputs are saved with the notebook", async () => {
+    await page.locator("#examples").selectOption("notebook.ipynb");
+    await page.locator('#file-list li.active[data-name="notebook.ipynb"]').waitFor();
+    const cells = page.locator("#notebook .cell");
+    const outputs = (i) => cells.nth(i).locator(".cell-outputs");
+    await cells.nth(0).locator("h1", { hasText: "A notebook" }).waitFor();
+    await cells.nth(1).locator(".cell-run").click();
+    await outputs(1).locator(".out-stdout", { hasText: "Hello from a notebook!" }).waitFor({ timeout: 60_000 });
+    assert.equal(await cells.nth(1).locator(".count").innerText(), "[1]");
+    // Shift-Enter runs a cell and moves on; x is the one the cell before set.
+    await cells.nth(2).locator(".cm-content").click();
+    await page.keyboard.press("Shift+Enter");
+    await outputs(2).locator(".out-result", { hasText: /^42$/ }).waitFor({ timeout: 30_000 });
+    assert.equal(await cells.nth(2).locator(".count").innerText(), "[2]");
+    // input(), from the terminal's input line.
+    await cells.nth(3).locator(".cell-run").click();
+    await page.locator("#stdin:not([disabled])").waitFor();
+    await page.locator("#stdin").fill("Ada");
+    await page.locator("#stdin").press("Enter");
+    await outputs(3).locator(".out-result", { hasText: "'Hello, Ada!'" }).waitFor({ timeout: 30_000 });
+    // An error shows its traceback: the cell's lines, not the kernel's.
+    await page.locator("#notebook button", { hasText: "+ Code" }).click();
+    await page.keyboard.insertText("def f():\n    return 1 / 0\n\nf()");
+    await page.keyboard.press("Shift+Enter");
+    await outputs(4).locator(".out-error", { hasText: "ZeroDivisionError: division by zero" }).waitFor({ timeout: 30_000 });
+    assert.match(await outputs(4).innerText(), /File "<cell 4>", line 2, in f\n\s*return 1 \/ 0/);
+    assert.doesNotMatch(await outputs(4).innerText(), /_cell|<exec>/);
+    // Run all: in order, until the error.
+    await page.locator("#notebook button", { hasText: "Clear outputs" }).click();
+    assert.equal(await page.locator("#notebook .cell-outputs pre").count(), 0);
+    await page.locator("#notebook button", { hasText: "Run all" }).click();
+    await page.locator("#stdin:not([disabled])").waitFor({ timeout: 30_000 });
+    await page.locator("#stdin").fill("Bob");
+    await page.locator("#stdin").press("Enter");
+    await outputs(4).locator(".out-error").waitFor({ timeout: 30_000 });
+    assert.equal(await cells.nth(4).locator(".count").innerText(), "[8]");
+    assert.match(await outputs(3).innerText(), /^What's your name\? \s*'Hello, Bob!'$/);
+    // A Markdown cell is edited on double-click, and rendered on Shift-Enter.
+    await cells.nth(0).locator(".markdown-body").dblclick();
+    await page.keyboard.press("ControlOrMeta+a");
+    await page.keyboard.insertText("## Edited, <b>escaped</b>");
+    await page.keyboard.press("Shift+Enter");
+    await cells.nth(0).locator("h2", { hasText: "Edited, <b>escaped</b>" }).waitFor();
+    // Saved, outputs too.
+    await page.reload();
+    await waitReady();
+    await outputs(2).locator(".out-result", { hasText: /^42$/ }).waitFor();
+    await outputs(4).locator(".out-error", { hasText: "ZeroDivisionError" }).waitFor();
+    await cells.nth(0).locator("h2", { hasText: "Edited" }).waitFor();
+    const saved = JSON.parse(await page.evaluate(() => new Promise((resolve) => {
+      indexedDB.open("rust-offline").onsuccess = ({ target: { result: db } }) => {
+        db.transaction("project-files").objectStore("project-files").getAll().onsuccess = ({ target: { result } }) =>
+          resolve(result.find((f) => f.name === "notebook.ipynb").content);
+      };
+    })));
+    assert.deepEqual(saved.cells[2].outputs[0], { output_type: "execute_result", execution_count: 6, data: { "text/plain": ["42"] }, metadata: {} });
+    // Restart forgets the kernel's names.
+    await page.locator("#notebook button", { hasText: "Restart kernel" }).click();
+    await cells.nth(2).locator(".cell-run").click();
+    await outputs(2).locator(".out-error", { hasText: "NameError: name 'x' is not defined" }).waitFor({ timeout: 60_000 });
+    assert.equal(await cells.nth(2).locator(".count").innerText(), "[1]");
+  });
+
   await step("Rust is a toolchain too: removed, then installed again when needed", async () => {
     await page.locator("#options summary").click();
     await page.locator("#toolchains-open").click();

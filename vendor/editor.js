@@ -1,9 +1,9 @@
 // CodeMirror 6 with Rust highlighting, bundled by scripts/build.sh into editor.js.
-import { basicSetup } from "codemirror";
-import { Compartment, EditorState } from "@codemirror/state";
+import { basicSetup, minimalSetup } from "codemirror";
+import { Compartment, EditorState, Prec } from "@codemirror/state";
 import { EditorView, hoverTooltip, keymap, tooltips } from "@codemirror/view";
 import { indentLess, indentMore, isolateHistory } from "@codemirror/commands";
-import { indentUnit } from "@codemirror/language";
+import { bracketMatching, indentOnInput, indentUnit } from "@codemirror/language";
 import { acceptCompletion, closeCompletion, ifNotIn, startCompletion } from "@codemirror/autocomplete";
 import { lintGutter, setDiagnostics } from "@codemirror/lint";
 import { rust, rustLanguage } from "@codemirror/lang-rust";
@@ -183,4 +183,23 @@ export function createEditor(parent, { onChange, keys = [], onSave = () => {}, o
       view.dispatch({ effects });
     },
   };
+}
+
+/** A notebook cell's editor in `parent`, holding `text`: Python, or plain
+ *  text (for Markdown) unless `isPython`, without gutters. `onChange(text)`
+ *  follows every edit; `keys` ({ key, run }) come before all others. Returns
+ *  its EditorView. */
+export function createCellEditor(parent, text, { onChange, keys = [], isPython = true }) {
+  const extensions = [
+    Prec.highest(keymap.of(keys)),
+    keymap.of([{ key: "Tab", run: indentMore, shift: indentLess }]),
+    minimalSetup,
+    bracketMatching(),
+    indentOnInput(),
+    indentUnit.of("    "),
+    isPython ? python() : EditorView.lineWrapping,
+    oneDark,
+    EditorView.updateListener.of((u) => { if (u.docChanged) onChange(u.state.doc.toString()); }),
+  ];
+  return new EditorView({ parent, state: EditorState.create({ doc: text, extensions }) });
 }

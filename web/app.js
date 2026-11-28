@@ -1,7 +1,6 @@
 // The page: files, editor, terminal, and the service worker that makes it
 // all work offline.
 import { createEditor } from "./editor.js";
-import { findDefinition } from "./definitions.js";
 import { parseDiagnostics } from "./diagnostics.js";
 import { Terminal } from "./terminal.js";
 import { EXAMPLES } from "./examples.js";
@@ -123,7 +122,7 @@ const editor = createEditor($("editor"), {
   ],
   onSave: () => flushSaves(),
   onDefinition(word, pos) {
-    const at = findDefinition(Object.fromEntries(files), active, word, pos);
+    const at = languageOf(active).findDefinition(Object.fromEntries(files), active, word, pos);
     if (at) gotoLocation(at.file, at.line, at.col);
     else setStatus(`No definition of ${word} found`);
   },

@@ -10,9 +10,6 @@ What Rust has and Python doesn't yet:
 - Completion: keywords and names, and members after `.` (Rust's is
   type-aware, with the compiler and the docs).
 - AI suggestions (their prompt and check are Rust's).
-- Clickable traceback lines (`File "/src/x.py", line 3`), as compiler errors
-  and panics are.
-- Errors underlined in the editor.
 - Go to definition (F12) and Format.
 - Offline docs: the Python documentation, searchable.
 

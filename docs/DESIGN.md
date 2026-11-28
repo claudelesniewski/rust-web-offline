@@ -200,7 +200,9 @@ service worker (sw.js): precache the site, serve it and the installed
   importing the installed packages it imports first. `input()` blocks the
   worker on a SharedArrayBuffer (`Atomics.wait`) until the terminal sends a
   line, as Rust programs' stdin does. Stop terminates the worker; the next
-  run starts a new one.
+  run starts a new one. A traceback shows only the program's frames (not
+  runpy's); `web/traceback.js` makes its places links, and underlines where
+  the exception was raised, and the calls that led there.
 
 ## Limits
 
@@ -209,7 +211,7 @@ service worker (sw.js): precache the site, serve it and the installed
 - Memory: rustc reserves up to 1 GiB of address space (512 MiB on devices
   reporting under 4 GB of RAM). Very large programs may run out.
 - Python: only packages that Pyodide builds for WebAssembly (no PyTorch, for
-  one); no completion, docs or clickable tracebacks yet.
+  one); no completion or docs yet.
 - Standard library only; one crate per run; programs are wasm, so no
   processes, networking or real filesystem.
 - The toolchain is a nightly using the Cranelift backend. Its author reports

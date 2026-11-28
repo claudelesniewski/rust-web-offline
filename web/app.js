@@ -17,7 +17,7 @@ import { find, replaceAll } from "./find.js";
 import * as packs from "./packs.js";
 import { LANGUAGES, findLocations, languageOf, validName, withExtension } from "./languages.js";
 import { parseTraceback } from "./traceback.js";
-import { formatPython } from "./ruff.js";
+import { formatPython, lintPython } from "./ruff.js";
 
 const $ = (id) => document.getElementById(id);
 const setStatus = (text) => { $("status").textContent = text; };
@@ -115,6 +115,7 @@ const editor = createEditor($("editor"), {
     files.set(active, text);
     diagnostics.delete(active);
     scheduleSave(active);
+    scheduleLint();
   },
   keys: [
     { key: "Mod-Enter", run: () => (run(), true) },
@@ -725,6 +726,23 @@ async function formatPythonFile() {
     terminal.write("stderr", `${e.message ?? e}\n`);
     terminal.write("info", "Formatting failed.\n");
   }
+}
+
+let lintTimer = null;
+
+/** Lint the open Python file with Ruff, if installed (not asking), once
+ *  edits settle; its findings replace the diagnostics an edit cleared. */
+function scheduleLint() {
+  clearTimeout(lintTimer);
+  if (!active.endsWith(".py")) return;
+  lintTimer = setTimeout(async () => {
+    const [name, text] = [active, editor.text()];
+    if (!(await packs.isInstalled((await packs.available()).ruff))) return;
+    const list = await lintPython(text);
+    if (active !== name || editor.text() !== text) return;
+    diagnostics.set(name, list);
+    editor.setDiagnostics(list);
+  }, 500);
 }
 
 function stop() {

@@ -1033,11 +1033,13 @@ function check(source, json = false) {
 const typeCompletion = createTypeCompletion({ check, fetchText: async (path) => (await fetch(path)).text() });
 
 /** The members after a dot (and in Python, names in imports): in Rust, of
- *  the type the compiler finds; in Python, as jedi finds them. */
-const members = (doc, from, to) => (active.endsWith(".rs") ? typeCompletion(doc, from, to, [...files.values()], active)
+ *  the type the compiler finds, or after `::`, the items of the module or
+ *  type there; in Python, as jedi finds them. */
+const projectFiles = () => [...files].map(([name, content]) => ({ name, content }));
+const members = (doc, from, to) => (active.endsWith(".rs") ? typeCompletion(doc, from, to, projectFiles(), active)
   : active.endsWith(".py") ? pythonMembers(doc, from, to) : null);
 
-const rustHover = createRustHover({ members: (doc, from, to) => typeCompletion(doc, from, to, [...files.values()], active),
+const rustHover = createRustHover({ members: (doc, from, to) => typeCompletion(doc, from, to, projectFiles(), active),
   fetchText: async (path) => (await fetch(path)).text() });
 
 /** Docs on hover: Rust's from the offline docs, Python's from jedi. */

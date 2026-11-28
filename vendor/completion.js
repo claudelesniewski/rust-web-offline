@@ -54,15 +54,16 @@ const AFTER_DOT = options(METHODS, "method");
 const AFTER_PATH = [...options(ASSOC, "function"), ...options(TYPES, "type")];
 
 /** The completion source: what fits before the cursor, plus the file's
- *  own words. After a dot, `typeMethods(doc, from, to)` (if it returns a
- *  list rather than null) gives the methods of the type before the dot. */
+ *  own words. After a dot or `::`, `typeMethods(doc, from, to)` (if it
+ *  returns a list rather than null) gives the methods of the type before
+ *  the dot, or the items of the module or type before the `::`. */
 export function rustCompletions(typeMethods = () => null) {
   return async (context) => {
     const word = context.matchBefore(/[A-Za-z_][A-Za-z0-9_]*!?$/);
     const from = word?.from ?? context.pos;
     const before = context.state.sliceDoc(Math.max(0, from - 2), from);
-    if (!word && !context.explicit && !before.endsWith(".")) return null;
-    if (before.endsWith(".")) {
+    if (!word && !context.explicit && !before.endsWith(".") && before !== "::") return null;
+    if (before.endsWith(".") || before === "::") {
       const typed = await typeMethods(context.state.doc.toString(), from, context.pos);
       // Common methods first.
       if (typed) return { from, options: typed.map((o) => (COMMON.has(o.label) ? { ...o, boost: 1 } : o)), validFor: /^\w*$/ };

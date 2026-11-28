@@ -34,7 +34,9 @@ library run as WebAssembly on your machine; nothing is sent to a server.
   first used).
 - Optional Vim key bindings (in **Options**), with `:w` to save.
 - Type-aware completion after `.` (on by default, in **Options**): in Rust,
-  the compiler finds the type, and the offline docs list its methods; in
+  the compiler finds the type, and the offline docs list its methods (and
+  after `::`, a module's public items, or a type's associated functions);
+  in
   Python, jedi (installed with Python) finds the members, and modules in
   imports.
 - Optional **AI** suggestions (in **Options**): a small language model runs

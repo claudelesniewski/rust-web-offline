@@ -171,6 +171,17 @@ try {
     await page.locator('#file-list li.active[data-name="geometry.rs"]').waitFor();
     assert.match(await page.locator(".cm-activeLine").innerText(), /^pub fn double\(/);
     await setCode("geometry.rs", "pub fn double(x: i32) -> i32 { x * 2 }\n");
+    // After `geometry::`, completion offers what the module makes public.
+    await setCode("main.rs", "mod geometry;\nfn main() {\n    let x = geometry::\n}\n");
+    await page.keyboard.press("ControlOrMeta+Home");
+    await page.keyboard.press("ArrowDown");
+    await page.keyboard.press("ArrowDown");
+    await page.keyboard.press("End");
+    await page.keyboard.press("Tab");
+    await page.locator(".cm-tooltip-autocomplete").waitFor({ timeout: 30_000 });
+    assert.deepEqual(await page.locator(".cm-completionLabel").allInnerTexts(), ["double"]);
+    await page.keyboard.press("Escape");
+    await setCode("main.rs", 'mod geometry;\nfn main() { println!("{}", geometry::double(21)); }\n');
   });
 
   await step("hover docs for Rust: a type's from the offline docs, a method's after a dot", async () => {
